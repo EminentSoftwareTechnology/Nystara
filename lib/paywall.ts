@@ -18,7 +18,10 @@ export async function checkPaywallAccess(visitorId: string, articleId: string) {
     const existing = await tx.articleView.findFirst({
       where: { visitorId, articleId, createdAt: { gte: windowStart } }, select: { id: true },
     });
-    const count = await tx.articleView.count({ where: { visitorId, createdAt: { gte: windowStart } } });
+    // Free stories record views too (for trending); only members-only reads use up the quota.
+    const count = await tx.articleView.count({
+      where: { visitorId, createdAt: { gte: windowStart }, article: { memberOnly: true } },
+    });
     if (existing) return { allowed: true, remaining: Math.max(0, FREE_LIMIT - count) };
     if (count >= FREE_LIMIT) return { allowed: false, remaining: 0 };
     await tx.articleView.create({ data: { visitorId, articleId } });

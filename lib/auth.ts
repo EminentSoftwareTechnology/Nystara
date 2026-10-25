@@ -1,6 +1,6 @@
 import NextAuth from "next-auth";
-import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
+import { authAdapter } from "@/lib/auth-adapter";
 import { authConfig } from "@/auth.config";
 import {
   OAUTH_TURNSTILE_COOKIE,
@@ -19,7 +19,7 @@ function readBoolean(source: object, key: string): boolean {
 
 const nextAuth = NextAuth((req) => ({
   ...authConfig,
-  adapter: PrismaAdapter(prisma),
+  adapter: authAdapter(prisma),
   callbacks: {
     ...authConfig.callbacks,
     async signIn({ account, email }) {

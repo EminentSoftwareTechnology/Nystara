@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Newsreader } from "next/font/google";
+import { Geist, Geist_Mono, Newsreader, Playfair_Display, Source_Serif_4 } from "next/font/google";
 import { cookies } from "next/headers";
 import { isExplicitTheme } from "@/lib/theme";
 import "./globals.css";
@@ -17,6 +17,21 @@ const geistMono = Geist_Mono({
 const newsreader = Newsreader({
   variable: "--font-newsreader",
   subsets: ["latin"],
+});
+
+// Story theme fonts; only downloaded on pages that use them.
+const playfair = Playfair_Display({
+  variable: "--font-playfair",
+  subsets: ["latin"],
+  style: ["normal", "italic"],
+  preload: false,
+});
+
+const sourceSerif = Source_Serif_4({
+  variable: "--font-source-serif",
+  subsets: ["latin"],
+  style: ["normal", "italic"],
+  preload: false,
 });
 
 export const metadata: Metadata = {
@@ -57,7 +72,7 @@ export default async function RootLayout({
     <html
       lang="en"
       data-theme={theme}
-      className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable} ${playfair.variable} ${sourceSerif.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col font-sans">{children}</body>
     </html>

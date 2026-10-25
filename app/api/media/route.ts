@@ -7,10 +7,13 @@ import { readJson } from "@/lib/request";
 import { rateLimit } from "@/lib/rate-limit";
 import { imageType } from "@/lib/image-type";
 import { r2Config, r2Client } from "@/lib/r2";
+import { clamavConfig, clamavScan } from "@/lib/clamav";
+import { InvalidImage, toWebp } from "@/lib/image-pipeline";
 
 const schema = z.object({
   data: z.string().max(820000),
   type: z.enum(["image/jpeg", "image/png", "image/webp"]),
+  purpose: z.enum(["inline", "cover"]).default("inline"),
 });
 
 export async function POST(req: Request) {
@@ -45,21 +48,42 @@ export async function POST(req: Request) {
       { error: "Invalid image or file larger than 600 KB." },
       { status: 400 },
     );
-  const extension = {
-    "image/jpeg": "jpg",
-    "image/png": "png",
-    "image/webp": "webp",
-  }[input.data.type];
-  const key = `stories/${session.user.id}/${randomUUID()}.${extension}`;
+  const scanner = clamavConfig();
+  if (scanner) {
+    try {
+      if (await clamavScan(bytes, scanner))
+        return NextResponse.json(
+          { error: "This file was blocked by the virus scanner." },
+          { status: 422 },
+        );
+    } catch {
+      return NextResponse.json(
+        { error: "Uploads are paused while the file scanner is unavailable." },
+        { status: 503 },
+      );
+    }
+  }
+  let webp: Buffer;
+  try {
+    ({ data: webp } = await toWebp(bytes, input.data.purpose));
+  } catch (error) {
+    if (!(error instanceof InvalidImage)) throw error;
+    return NextResponse.json(
+      { error: "This image could not be read. Try another file." },
+      { status: 400 },
+    );
+  }
+  const key = `stories/${session.user.id}/${randomUUID()}.webp`;
   const client = r2Client(config);
   try {
     await client.send(
       new PutObjectCommand({
         Bucket: config.bucket,
         Key: key,
-        Body: bytes,
-        ContentType: input.data.type,
-        CacheControl: "public, max-age=3600",
+        Body: webp,
+        ContentType: "image/webp",
+        // Keys are random and never overwritten.
+        CacheControl: "public, max-age=31536000, immutable",
       }),
       { abortSignal: AbortSignal.timeout(20_000) },
     );

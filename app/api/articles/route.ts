@@ -7,6 +7,7 @@ import { generateUniqueSlug } from "@/lib/slug";
 import { MAX_CONTENT_CHARS, readJson } from "@/lib/request";
 import { articleContent, coverImageUrl } from "@/lib/article-schema";
 import { documentText, storyNode } from "@/lib/story-document";
+import { storyTheme } from "@/lib/story-theme";
 
 const PAGE_SIZE = 20;
 
@@ -62,6 +63,7 @@ const createSchema = z.object({
   content: articleContent,
   contentText: z.string().max(MAX_CONTENT_CHARS),
   memberOnly: z.boolean().default(false),
+  theme: storyTheme.default("classic"),
   tagSlugs: z
     .array(
       z
@@ -87,7 +89,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { title, subtitle, content, coverImage, memberOnly, tagSlugs } =
+  const { title, subtitle, content, coverImage, memberOnly, theme, tagSlugs } =
     parsed.data;
   const doc = storyNode.safeParse(content);
   const contentText = doc.success && doc.data.content ? documentText(doc.data) : parsed.data.contentText;
@@ -106,6 +108,7 @@ export async function POST(req: NextRequest) {
       contentText,
       readTime,
       memberOnly,
+      theme,
       authorId: session.user.id,
       tags: {
         create: [...new Set(tagSlugs)].map((tagSlug) => ({

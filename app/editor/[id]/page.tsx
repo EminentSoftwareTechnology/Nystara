@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { legacyDocument, storyNode } from "@/lib/story-document";
+import { toStoryTheme } from "@/lib/story-theme";
 import StoryEditor from "@/app/new-story/StoryEditor";
 
 export default async function EditStoryPage({
@@ -25,6 +26,7 @@ export default async function EditStoryPage({
         memberOnly: true,
         coverImage: true,
         updatedAt: true,
+        theme: true,
         author: { select: { username: true } },
       },
     }),
@@ -48,6 +50,7 @@ export default async function EditStoryPage({
       initial={{
         ...article,
         updatedAt: article.updatedAt.toISOString(),
+        theme: toStoryTheme(article.theme),
         content:
           doc.success && doc.data.content
             ? doc.data

@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { rateLimit } from "@/lib/rate-limit";
 
-const sections = ["articles", "comments", "claps", "bookmarks", "following", "followers", "views"] as const;
+const sections = ["articles", "comments", "claps", "bookmarks", "following", "followers", "views", "feedback"] as const;
 const take = 20;
 
 export async function GET(req: NextRequest) {
@@ -61,6 +61,10 @@ export async function GET(req: NextRequest) {
     }
     case "bookmarks": {
       const data = await prisma.bookmark.findMany({ where: { userId, ...(cursor ? { articleId: { gt: cursor } } : {}) }, take: take + 1, orderBy: { articleId: "asc" }, select: { articleId: true, createdAt: true } });
+      rows = data; keys = data.map((row) => row.articleId); break;
+    }
+    case "feedback": {
+      const data = await prisma.articleFeedback.findMany({ where: { userId, ...(cursor ? { articleId: { gt: cursor } } : {}) }, take: take + 1, orderBy: { articleId: "asc" }, select: { articleId: true, reaction: true, rating: true, updatedAt: true } });
       rows = data; keys = data.map((row) => row.articleId); break;
     }
     case "following": {

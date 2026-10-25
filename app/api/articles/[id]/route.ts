@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { MAX_CONTENT_CHARS, readJson } from "@/lib/request";
 import { articleContent, coverImageUrl } from "@/lib/article-schema";
 import { documentText, storyNode } from "@/lib/story-document";
+import { storyTheme } from "@/lib/story-theme";
 
 const updateSchema = z.object({
   title: z.string().min(1).max(250).optional(),
@@ -13,6 +14,7 @@ const updateSchema = z.object({
   content: articleContent.optional(),
   contentText: z.string().max(MAX_CONTENT_CHARS).optional(),
   memberOnly: z.boolean().optional(),
+  theme: storyTheme.optional(),
   coverImage: coverImageUrl.nullable().optional(),
 });
 

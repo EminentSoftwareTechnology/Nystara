@@ -12,11 +12,10 @@ import Placeholder from "@tiptap/extension-placeholder";
 import UserMenu from "@/components/layout/UserMenu";
 import { Logo } from "@/components/brand/Logo";
 import { VideoNode } from "@/components/editor/video-extension";
-import {
-  FONT_FAMILIES,
-  FONT_SIZES,
-  safeLink,
-} from "@/lib/story-document";
+import Ribbon from "@/components/editor/Ribbon";
+import { prepareImage } from "@/components/editor/prepare-image";
+import { safeLink } from "@/lib/story-document";
+import type { StoryTheme } from "@/lib/story-theme";
 import {
   type LocalDraft,
   clearLocalDraft,
@@ -34,6 +33,7 @@ export type InitialStory = Draft & {
   coverImage: string | null;
   /** ISO time of the last server save; a newer copy in this browser wins over it. */
   updatedAt: string;
+  theme: StoryTheme;
 };
 type Props = {
   name: string | null;
@@ -57,6 +57,7 @@ export default function StoryEditor({
   const [subtitle, setSubtitle] = useState(initial?.subtitle ?? "");
   const [memberOnly, setMemberOnly] = useState(initial?.memberOnly ?? false);
   const [coverImage, setCoverImage] = useState(initial?.coverImage ?? null);
+  const [theme, setTheme] = useState<StoryTheme>(initial?.theme ?? "classic");
   const [draft, setDraft] = useState<Draft | null>(initial ?? null);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -180,6 +181,7 @@ export default function StoryEditor({
         contentText: editor.getText(),
         memberOnly,
         coverImage,
+        theme,
       };
       const response = await fetch(
         draft ? `/api/articles/${draft.id}` : "/api/articles",
@@ -233,24 +235,22 @@ export default function StoryEditor({
 
   async function upload(file: File) {
     if (!editor) return;
-    if (
-      file.size > 600 * 1024 ||
-      !["image/jpeg", "image/png", "image/webp"].includes(file.type)
-    ) {
-      setError("Choose a JPEG, PNG or WebP image up to 600 KB.");
-      return;
-    }
     setUploading(true);
     setError("");
     const asCover = uploadAsCover.current;
     try {
-      const bytes = new Uint8Array(await file.arrayBuffer());
+      const image = await prepareImage(file);
+      const bytes = new Uint8Array(await image.arrayBuffer());
       let binary = "";
       for (const byte of bytes) binary += String.fromCharCode(byte);
       const response = await fetch("/api/media", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: file.type, data: btoa(binary) }),
+        body: JSON.stringify({
+          type: image.type,
+          data: btoa(binary),
+          purpose: asCover ? "cover" : "inline",
+        }),
       });
       const result = (await response.json()) as {
         url?: string;
@@ -317,29 +317,6 @@ export default function StoryEditor({
     } finally {
       setVideoBusy(false);
     }
-  }
-
-  function tool(
-    label: string,
-    action: () => void,
-    active = false,
-    disabled = false,
-  ) {
-    return (
-      <button
-        type="button"
-        key={label}
-        title={label}
-        aria-label={label}
-        aria-pressed={active}
-        disabled={disabled || busy}
-        onMouseDown={(event) => event.preventDefault()}
-        onClick={action}
-        className={`${control} ${active ? "bg-surface ring-1 ring-foreground" : ""}`}
-      >
-        {label}
-      </button>
-    );
   }
 
   return (
@@ -424,162 +401,32 @@ export default function StoryEditor({
             className="min-w-0 rounded-xl border border-border bg-page shadow-sm"
             aria-label="Document editor"
           >
-            <fieldset
+            <Ribbon
+              editor={editor}
               disabled={busy}
-              className="flex flex-wrap items-center gap-2 border-b border-border p-3"
-              aria-label="Text formatting"
-            >
-              <select
-                aria-label="Paragraph style"
-                className={control}
-                value={
-                  editor?.isActive("heading")
-                    ? String(editor.getAttributes("heading").level)
-                    : "paragraph"
-                }
-                onChange={(event) =>
-                  event.target.value === "paragraph"
-                    ? editor?.chain().focus().setParagraph().run()
-                    : editor
-                        ?.chain()
-                        .focus()
-                        .setHeading({
-                          level: Number(event.target.value) as 1 | 2 | 3,
-                        })
-                        .run()
-                }
-              >
-                <option value="paragraph">Normal text</option>
-                <option value="1">Heading 1</option>
-                <option value="2">Heading 2</option>
-                <option value="3">Heading 3</option>
-              </select>
-              <select
-                aria-label="Font family"
-                className={control}
-                value={String(
-                  editor?.getAttributes("textStyle").fontFamily ?? "Georgia",
-                )}
-                onChange={(event) =>
-                  editor
-                    ?.chain()
-                    .focus()
-                    .setFontFamily(event.target.value)
-                    .run()
-                }
-              >
-                {FONT_FAMILIES.map((font) => (
-                  <option key={font}>{font}</option>
-                ))}
-              </select>
-              <select
-                aria-label="Font size"
-                className={control}
-                value={String(
-                  editor?.getAttributes("textStyle").fontSize ?? "20px",
-                )}
-                onChange={(event) =>
-                  editor?.chain().focus().setFontSize(event.target.value).run()
-                }
-              >
-                {FONT_SIZES.map((size) => (
-                  <option key={size} value={size}>
-                    {size.replace("px", "")}
-                  </option>
-                ))}
-              </select>
-              {tool(
-                "Bold",
-                () => editor?.chain().focus().toggleBold().run(),
-                editor?.isActive("bold"),
-              )}
-              {tool(
-                "Italic",
-                () => editor?.chain().focus().toggleItalic().run(),
-                editor?.isActive("italic"),
-              )}
-              {tool(
-                "Underline",
-                () => editor?.chain().focus().toggleUnderline().run(),
-                editor?.isActive("underline"),
-              )}
-              {tool(
-                "Strike",
-                () => editor?.chain().focus().toggleStrike().run(),
-                editor?.isActive("strike"),
-              )}
-              {["left", "center", "right", "justify"].map((align) =>
-                tool(
-                  `Align ${align}`,
-                  () => editor?.chain().focus().setTextAlign(align).run(),
-                  editor?.isActive({ textAlign: align }),
-                ),
-              )}
-              <select
-                aria-label="Line spacing"
-                className={control}
-                value={String(
-                  editor?.getAttributes("textStyle").lineHeight ?? "1.8",
-                )}
-                onChange={(event) =>
-                  editor
-                    ?.chain()
-                    .focus()
-                    .setLineHeight(event.target.value)
-                    .run()
-                }
-              >
-                <option value="1.5">Spacing 1.5</option>
-                <option value="1.8">Spacing 1.8</option>
-                <option value="2">Double spacing</option>
-              </select>
-              {tool(
-                "Bullets",
-                () => editor?.chain().focus().toggleBulletList().run(),
-                editor?.isActive("bulletList"),
-              )}
-              {tool(
-                "Numbered list",
-                () => editor?.chain().focus().toggleOrderedList().run(),
-                editor?.isActive("orderedList"),
-              )}
-              {tool(
-                "Quote",
-                () => editor?.chain().focus().toggleBlockquote().run(),
-                editor?.isActive("blockquote"),
-              )}
-              {tool(
-                "Code",
-                () => editor?.chain().focus().toggleCodeBlock().run(),
-                editor?.isActive("codeBlock"),
-              )}
-              {tool("Divider", () =>
-                editor?.chain().focus().setHorizontalRule().run(),
-              )}
-              {tool(
-                "Link",
-                () => {
-                  setLinkOpen(!linkOpen);
-                  setLink(String(editor?.getAttributes("link").href ?? ""));
-                },
-                editor?.isActive("link"),
-              )}
-              {tool("Clear formatting", () =>
-                editor?.chain().focus().unsetAllMarks().clearNodes().run(),
-              )}
-              {tool(
-                "Undo",
-                () => editor?.chain().focus().undo().run(),
-                false,
-                !editor?.can().undo(),
-              )}
-              {tool(
-                "Redo",
-                () => editor?.chain().focus().redo().run(),
-                false,
-                !editor?.can().redo(),
-              )}
-            </fieldset>
+              uploading={uploading || videoBusy}
+              theme={theme}
+              onTheme={(value) => {
+                setTheme(value);
+                changed();
+              }}
+              onInsertImage={() => {
+                uploadAsCover.current = false;
+                fileRef.current?.click();
+              }}
+              onUploadCover={() => {
+                uploadAsCover.current = true;
+                fileRef.current?.click();
+              }}
+              onToggleVideo={() => setVideoOpen(!videoOpen)}
+              onToggleLink={() => {
+                setLinkOpen(!linkOpen);
+                setLink(String(editor?.getAttributes("link").href ?? ""));
+              }}
+              videoOpen={videoOpen}
+              alt={alt}
+              onAlt={setAlt}
+            />
             {linkOpen && (
               <form
                 className="flex flex-wrap gap-2 border-b border-border p-3"
@@ -618,51 +465,6 @@ export default function StoryEditor({
                 </button>
               </form>
             )}
-            <fieldset
-              disabled={busy || uploading || videoBusy}
-              className="flex flex-wrap gap-2 border-b border-border p-3"
-              aria-label="Insert media"
-            >
-              <input
-                aria-label="Image description"
-                placeholder="Image description (alt text)"
-                value={alt}
-                onChange={(event) => setAlt(event.target.value)}
-                className={`${control} w-56`}
-                maxLength={500}
-              />
-              <button
-                type="button"
-                className={control}
-                onClick={() => {
-                  uploadAsCover.current = false;
-                  fileRef.current?.click();
-                }}
-              >
-                {uploading ? "Uploading…" : "Insert image"}
-              </button>
-              <button
-                type="button"
-                className={control}
-                onClick={() => {
-                  uploadAsCover.current = true;
-                  fileRef.current?.click();
-                }}
-              >
-                Upload cover
-              </button>
-              <button
-                type="button"
-                className={control}
-                aria-expanded={videoOpen}
-                onClick={() => setVideoOpen(!videoOpen)}
-              >
-                Insert video link
-              </button>
-              <span className="self-center text-xs text-muted">
-                JPEG, PNG, WebP · 600 KB max
-              </span>
-            </fieldset>
             <input
               ref={fileRef}
               type="file"
@@ -695,53 +497,58 @@ export default function StoryEditor({
                 </button>
               </form>
             )}
-            <div className="mx-auto max-w-4xl px-5 py-8 sm:px-12 sm:py-12">
-              {coverImage && (
-                <div className="mb-6">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={coverImage}
-                    alt="Story cover"
-                    className="max-h-72 w-full rounded-lg object-cover"
-                  />
-                  <button
-                    className="mt-2 text-xs underline"
-                    disabled={busy}
-                    onClick={() => {
-                      setCoverImage(null);
-                      changed();
-                    }}
-                  >
-                    Remove cover
-                  </button>
-                </div>
-              )}
-              <input
-                aria-label="Story title"
-                placeholder="Title"
-                maxLength={250}
-                disabled={busy}
-                value={title}
-                onChange={(event) => {
-                  setTitle(event.target.value);
-                  changed();
-                }}
-                className="mb-3 w-full bg-transparent text-3xl font-semibold tracking-tight outline-none sm:text-4xl"
-              />
-              <textarea
-                aria-label="Story subtitle"
-                placeholder="Add a subtitle…"
-                maxLength={500}
-                rows={2}
-                disabled={busy}
-                value={subtitle}
-                onChange={(event) => {
-                  setSubtitle(event.target.value);
-                  changed();
-                }}
-                className="mb-6 w-full resize-none bg-transparent text-lg text-muted outline-none"
-              />
-              <EditorContent editor={editor} />
+            <div className="bg-surface px-2 py-6 sm:px-8 sm:py-10">
+              <div
+                className="story-theme mx-auto max-w-[850px] rounded-sm border border-border bg-page px-5 py-8 shadow-md sm:px-16 sm:py-14"
+                data-story-theme={theme}
+              >
+                {coverImage && (
+                  <div className="mb-6">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={coverImage}
+                      alt="Story cover"
+                      className="max-h-72 w-full rounded-lg object-cover"
+                    />
+                    <button
+                      className="mt-2 text-xs underline"
+                      disabled={busy}
+                      onClick={() => {
+                        setCoverImage(null);
+                        changed();
+                      }}
+                    >
+                      Remove cover
+                    </button>
+                  </div>
+                )}
+                <input
+                  aria-label="Story title"
+                  placeholder="Title"
+                  maxLength={250}
+                  disabled={busy}
+                  value={title}
+                  onChange={(event) => {
+                    setTitle(event.target.value);
+                    changed();
+                  }}
+                  className="story-display mb-3 w-full bg-transparent text-3xl outline-none sm:text-4xl"
+                />
+                <textarea
+                  aria-label="Story subtitle"
+                  placeholder="Add a subtitle…"
+                  maxLength={500}
+                  rows={2}
+                  disabled={busy}
+                  value={subtitle}
+                  onChange={(event) => {
+                    setSubtitle(event.target.value);
+                    changed();
+                  }}
+                  className="mb-6 w-full resize-none bg-transparent text-lg text-muted outline-none"
+                />
+                <EditorContent editor={editor} />
+              </div>
             </div>
             <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border p-4 text-xs text-muted">
               <span>
