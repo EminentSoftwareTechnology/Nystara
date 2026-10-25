@@ -1,7 +1,8 @@
 import type { CSSProperties, ReactNode } from "react";
-import { storyNode, safeLink, type StoryNode } from "@/lib/story-document";
+import { storyNode, safeLink, legacyDocument, type StoryNode } from "@/lib/story-document";
 import { isStorageImage } from "@/lib/storage-url";
 import VideoPreview from "./VideoPreview";
+import { parseVideoUrl } from "@/lib/video";
 
 function renderNode(node: StoryNode, key: number): ReactNode {
   const children = node.content?.map(renderNode);
@@ -55,12 +56,25 @@ function renderNode(node: StoryNode, key: number): ReactNode {
     }
     case "doc":
       return <div key={key}>{children}</div>;
-    case "paragraph":
+    case "paragraph": {
+      const parts = node.content ?? [];
+      const onlyText = parts.every((part) => part.type === "text");
+      const raw = onlyText ? parts.map((part) => part.text ?? "").join("").trim() : "";
+      const linkedUrl = parts.length === 1 && parts[0].type === "text"
+        ? parts[0].marks?.find((mark) => mark.type === "link")?.attrs?.href
+        : undefined;
+      const inlineCode = parts.some((part) => part.marks?.some((mark) => mark.type === "code"));
+      const video = inlineCode ? null : parseVideoUrl(raw) ?? (linkedUrl ? parseVideoUrl(linkedUrl) : null);
+      if (video) return <VideoPreview key={key} url={video.url} title={linkedUrl && raw !== linkedUrl ? raw : undefined} />;
+      if (onlyText && !parts.some((part) => part.marks?.length) && raw.includes("\n") && raw.split("\n").some((line) => parseVideoUrl(line.trim()))) {
+        return <div key={key}>{raw.split("\n").map((line, index) => renderNode({ type: "paragraph", content: [{ type: "text", text: line }] }, index))}</div>;
+      }
       return (
         <p key={key} style={style}>
           {children?.length ? children : <br />}
         </p>
       );
+    }
     case "heading":
       return node.attrs?.level === 1 ? (
         <h1 key={key} style={style}>
@@ -133,7 +147,7 @@ export default function StoryContent({
       {result.success && result.data.type === "doc" && result.data.content ? (
         renderNode(result.data, 0)
       ) : (
-        <p className="whitespace-pre-wrap">{text}</p>
+        renderNode(legacyDocument(text), 0)
       )}
     </div>
   );

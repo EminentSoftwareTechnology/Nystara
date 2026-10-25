@@ -1,6 +1,6 @@
 import sharp from "sharp";
 
-export const IMAGE_MAX_EDGE = { inline: 1600, cover: 2400 } as const;
+export const IMAGE_MAX_EDGE = { inline: 1600, cover: 2400, avatar: 512 } as const;
 export type ImagePurpose = keyof typeof IMAGE_MAX_EDGE;
 
 // Rejects decompression bombs before pixels are allocated.

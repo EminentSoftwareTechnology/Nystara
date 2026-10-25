@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import ImagePicker from "@/components/media/ImagePicker";
 import Link from "next/link";
 
 type Article = {
   id: string;
   title: string;
   subtitle: string | null;
+  coverImage: string | null;
   contentText: string;
   memberOnly: boolean;
   published: boolean;
@@ -18,11 +20,14 @@ export default function EditArticlePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [originalText, setOriginalText] = useState("");
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState({
     title: "",
     subtitle: "",
+    coverImage: null as string | null,
     contentText: "",
     memberOnly: false,
     published: false,
@@ -33,9 +38,11 @@ export default function EditArticlePage() {
     fetch(`/api/admin/articles/${id}`)
       .then((r) => r.json())
       .then((data: Article) => {
+        setOriginalText(data.contentText);
         setForm({
           title: data.title,
           subtitle: data.subtitle ?? "",
+          coverImage: data.coverImage,
           contentText: data.contentText,
           memberOnly: data.memberOnly,
           published: data.published,
@@ -47,6 +54,7 @@ export default function EditArticlePage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (uploading || saving) return;
     setSaving(true);
     setError("");
 
@@ -58,7 +66,7 @@ export default function EditArticlePage() {
     const res = await fetch(`/api/admin/articles/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, tagSlugs }),
+      body: JSON.stringify({ ...form, contentText: form.contentText === originalText ? undefined : form.contentText, tagSlugs }),
     });
 
     if (res.ok) {
@@ -83,6 +91,7 @@ export default function EditArticlePage() {
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="bg-background rounded-2xl border border-border p-6 space-y-4">
+          <ImagePicker purpose="cover" value={form.coverImage} onChange={(coverImage) => setForm((current) => ({ ...current, coverImage }))} onUploading={setUploading} disabled={saving} />
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">Title *</label>
             <input
@@ -148,7 +157,7 @@ export default function EditArticlePage() {
         <div className="flex gap-3">
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || uploading}
             className="px-6 py-2.5 rounded-full bg-accent text-accent-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50"
           >
             {saving ? "Saving…" : "Save changes"}

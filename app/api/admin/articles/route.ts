@@ -1,5 +1,6 @@
 import { notifyUser } from "@/lib/email/notifications";
 import { NextRequest, NextResponse } from "next/server";
+import { coverImageUrl } from "@/lib/article-schema";
 import { z } from "zod";
 import { getVerifiedAdminSession } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
@@ -52,6 +53,7 @@ export async function GET(req: NextRequest) {
 const createSchema = z.object({
   title: z.string().min(1).max(250),
   subtitle: z.string().max(500).optional(),
+  coverImage: coverImageUrl.nullable().optional(),
   contentText: z.string().min(1).max(MAX_CONTENT_CHARS),
   memberOnly: z.boolean().default(false),
   published: z.boolean().default(false),
@@ -66,7 +68,7 @@ export async function POST(req: NextRequest) {
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const { title, subtitle, contentText, memberOnly, published, tagSlugs } = parsed.data;
+  const { title, subtitle, coverImage, contentText, memberOnly, published, tagSlugs } = parsed.data;
   const wordCount = contentText.trim().split(/\s+/).filter(Boolean).length;
   const readTime = Math.max(1, Math.ceil(wordCount / 200));
   const slug = generateUniqueSlug(title);
@@ -76,6 +78,7 @@ export async function POST(req: NextRequest) {
       slug,
       title,
       subtitle,
+      coverImage,
       content: { text: contentText },
       contentText,
       readTime,

@@ -13,7 +13,7 @@ import UserMenu from "@/components/layout/UserMenu";
 import { Logo } from "@/components/brand/Logo";
 import { VideoNode } from "@/components/editor/video-extension";
 import Ribbon from "@/components/editor/Ribbon";
-import { prepareImage } from "@/components/editor/prepare-image";
+import { uploadImage } from "@/components/editor/upload-image";
 import { safeLink } from "@/lib/story-document";
 import type { StoryTheme } from "@/lib/story-theme";
 import {
@@ -161,7 +161,7 @@ export default function StoryEditor({
   }, [dirty]);
 
   async function save(publish: boolean) {
-    if (!editor || busy || uploading) return;
+    if (!editor || busy || uploading || videoBusy) return;
     if (!title.trim()) {
       setError("Give your story a title first.");
       return;
@@ -239,27 +239,9 @@ export default function StoryEditor({
     setError("");
     const asCover = uploadAsCover.current;
     try {
-      const image = await prepareImage(file);
-      const bytes = new Uint8Array(await image.arrayBuffer());
-      let binary = "";
-      for (const byte of bytes) binary += String.fromCharCode(byte);
-      const response = await fetch("/api/media", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: image.type,
-          data: btoa(binary),
-          purpose: asCover ? "cover" : "inline",
-        }),
-      });
-      const result = (await response.json()) as {
-        url?: string;
-        error?: string;
-      };
-      if (!response.ok || !result.url)
-        throw new Error(result.error ?? "Upload failed.");
+      const url = await uploadImage(file, asCover ? "cover" : "inline");
       if (asCover) {
-        setCoverImage(result.url);
+        setCoverImage(url);
         changed();
       } else
         editor
@@ -267,7 +249,7 @@ export default function StoryEditor({
           .focus()
           .insertContentAt(editor.state.selection.to, {
             type: "image",
-            attrs: { src: result.url, alt },
+            attrs: { src: url, alt },
           })
           .run();
     } catch (cause) {
@@ -356,14 +338,14 @@ export default function StoryEditor({
           </Link>
           <button
             className={control}
-            disabled={busy || uploading}
+            disabled={busy || uploading || videoBusy}
             onClick={() => void save(false)}
           >
             Save draft
           </button>
           <button
             className="rounded-full bg-accent px-5 py-2 text-sm text-accent-foreground disabled:opacity-50"
-            disabled={busy || uploading}
+            disabled={busy || uploading || videoBusy}
             onClick={() => void save(true)}
           >
             {busy ? "Saving…" : "Publish"}
@@ -487,7 +469,7 @@ export default function StoryEditor({
                   type="url"
                   required
                   aria-label="Video URL"
-                  placeholder="Paste a public YouTube or Vimeo link"
+                  placeholder="Paste a YouTube, Vimeo, MP4, WebM or OGV link"
                   value={video}
                   onChange={(event) => setVideo(event.target.value)}
                   className={`${control} min-w-0 flex-1`}
@@ -502,23 +484,27 @@ export default function StoryEditor({
                 className="story-theme mx-auto max-w-[850px] rounded-sm border border-border bg-page px-5 py-8 shadow-md sm:px-16 sm:py-14"
                 data-story-theme={theme}
               >
+                <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-border p-4">
+                  <div><p className="text-sm font-medium">Article banner</p><p className="text-xs text-muted">A wide image shown above your published story.</p></div>
+                  <button type="button" className={control} disabled={busy || uploading} onClick={() => { uploadAsCover.current = true; fileRef.current?.click(); }}>{uploading ? "Uploading…" : coverImage ? "Replace banner" : "Upload banner"}</button>
+                </div>
                 {coverImage && (
                   <div className="mb-6">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={coverImage}
-                      alt="Story cover"
+                      alt="Article banner preview"
                       className="max-h-72 w-full rounded-lg object-cover"
                     />
                     <button
                       className="mt-2 text-xs underline"
-                      disabled={busy}
+                      disabled={busy || uploading}
                       onClick={() => {
                         setCoverImage(null);
                         changed();
                       }}
                     >
-                      Remove cover
+                      Remove banner
                     </button>
                   </div>
                 )}

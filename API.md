@@ -238,7 +238,7 @@ Errors: `400`, `404`, `429`.
 
 ### `POST /api/media`
 
-Upload an image. **Session.**
+Upload an image. **Verified reader or admin session.**
 
 ```json
 { "type": "image/webp", "data": "<base64>", "purpose": "inline" }
@@ -255,28 +255,49 @@ Upload an image. **Session.**
 | R2 upload (20-second timeout) | `502` |
 
 The server re-encodes to WebP, fitting inside 1,600 px (`inline`, default) or
-2,400 px (`cover`) on the long edge, and removes metadata.
+2,400 px (`cover`) or 512 px (`avatar`) on the long edge, and removes metadata.
 
 `201 { "url": "<R2_PUBLIC_URL>/stories/{userId}/{uuid}.webp" }`.
 
 The editor shrinks large photos in the browser before calling this endpoint, so
-writers can pick files up to 25 MB.
+writers can pick files up to 25 MB. Profile photos use `purpose: "avatar"`;
+apply the returned URL using `PATCH /api/me` or `PATCH /api/admin/profile`.
+`avatarUrl` must point to a generated WebP in the current user's R2 prefix.
+Send `avatarUrl: null` to remove the photo, or omit it to retain the current one.
+Uploads require the configured R2 bucket and credentials in all environments.
 
-### `POST /api/videos`
+### `GET /api/videos?url=…` / `POST /api/videos`
 
-Resolve a video link to a preview. **Session.**
+Resolve a video link to a preview. GET is public so readers can load thumbnails
+for existing links; POST requires a reader session for the editor.
 
 ```json
 { "url": "https://youtu.be/dQw4w9WgXcQ" }
 ```
 
 Accepts HTTPS YouTube (`watch?v=`, `youtu.be/`, `shorts/`, `embed/`, 11-character
-ids) and Vimeo (`vimeo.com/{numeric id}`) URLs. The server calls the provider's
-oEmbed endpoint (8-second timeout, redirects rejected).
+ids), Vimeo (`vimeo.com/{numeric id}`, `player.vimeo.com/video/{id}`), and direct
+MP4/WebM/OGV file URLs. The server calls only the allow-listed provider
+oEmbed endpoint (8-second timeout, redirects rejected, cached for one hour).
+Vimeo unlisted hashes are retained. Direct files are never fetched server-side.
+They return a native-video URL
+without a thumbnail. Provider HTML is discarded.
 
 `200 { "url": "<normalised URL>", "title": "…", "thumbnail": "https://i.ytimg.com/…" }`.
 Errors: `401`, `400` (unsupported URL), `422` (private, unavailable or unsafe
 thumbnail), `502` (provider unreachable).
+
+Existing standalone YouTube/Vimeo links in rich-text paragraphs and legacy
+plain text render as click-to-play cards without rewriting stored stories.
+Pasting a supported link into the reader editor inserts a video block. Prose
+links and code stay as written. YouTube uses the privacy-enhanced player with
+an origin referrer so playback is not rejected with error 153. Unsupported or
+provider-restricted embeds retain an external viewing link.
+
+Article banners use `coverImage` on reader and admin article create/update
+requests. The reader editor shows banner controls above the story title; admin
+forms also support upload, replacement and removal. Saving an unchanged admin
+content field preserves the existing rich document.
 
 ---
 
@@ -389,11 +410,12 @@ code. Each account gets 10 attempts per 15 minutes.
 
 ### `PATCH /api/me`
 
-Set the display name and bio. **Setup session** (used during account setup and
+Set the display name, bio and optional uploaded profile photo. **Setup session** (used during account setup and
 on `/settings`).
 
 `{ "name": "Maya", "bio": "Optional, up to 500 characters" }`. `name` is 1–100
-characters after trimming.
+characters after trimming. `avatarUrl` is optional; omit it to keep the current
+photo, or pass null to remove it. A new URL must belong to your upload prefix.
 
 `200 { "saved": true }`. Errors: `401`, `400`.
 
@@ -522,7 +544,7 @@ Clears the admin cookie. `200 { "ok": true }`.
 
 ### `PATCH /api/admin/profile`
 
-`{ "name"?, "bio"?, "currentPassword"?, "newPassword"? }`. A new password needs
+`{ "name"?, "bio"?, "avatarUrl"?, "currentPassword"?, "newPassword"? }`. A new password needs
 the current password, must be 12+ characters and at most 72 UTF-8 bytes, revokes
 every admin session for this account and clears the cookie.
 

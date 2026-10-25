@@ -1,5 +1,6 @@
 "use client";
 
+import ImagePicker from "@/components/media/ImagePicker";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -15,8 +16,9 @@ export default function AdminProfilePage() {
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({ name: "", bio: "" });
+  const [form, setForm] = useState({ name: "", bio: "", avatarUrl: null as string | null });
   const [pwForm, setPwForm] = useState({ currentPassword: "", newPassword: "", confirm: "" });
+  const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [changingPw, setChangingPw] = useState(false);
   const [msg, setMsg] = useState("");
@@ -27,20 +29,25 @@ export default function AdminProfilePage() {
       .then((r) => r.json())
       .then((data: Profile) => {
         setProfile(data);
-        setForm({ name: data.name ?? "", bio: data.bio ?? "" });
+        setForm({ name: data.name ?? "", bio: data.bio ?? "", avatarUrl: data.avatarUrl });
       })
       .finally(() => setLoading(false));
   }, []);
 
   async function handleProfileSave(e: React.FormEvent) {
     e.preventDefault();
+    if (uploading || saving) return;
     setSaving(true);
     const res = await fetch("/api/admin/profile", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: form.name, bio: form.bio }),
+      body: JSON.stringify({ name: form.name, bio: form.bio, ...(form.avatarUrl !== profile?.avatarUrl ? { avatarUrl: form.avatarUrl } : {}) }),
     });
     setSaving(false);
+    if (res.ok) {
+      setProfile((current) => current ? { ...current, ...form } : current);
+      router.refresh();
+    }
     setMsg(res.ok ? "Profile updated." : "Failed to update.");
     setTimeout(() => setMsg(""), 3000);
   }
@@ -78,6 +85,7 @@ export default function AdminProfilePage() {
       {/* Profile info */}
       <form onSubmit={handleProfileSave} className="bg-background rounded-2xl border border-border p-6 space-y-4 mb-6">
         <h2 className="font-semibold text-foreground">Account details</h2>
+        <ImagePicker purpose="avatar" value={form.avatarUrl} onChange={(avatarUrl) => setForm((current) => ({ ...current, avatarUrl }))} onUploading={setUploading} disabled={saving} />
         <div>
           <label className="block text-sm text-muted mb-1">Email</label>
           <p className="text-sm font-medium text-foreground">{profile.email}</p>
@@ -102,7 +110,7 @@ export default function AdminProfilePage() {
         <div className="flex items-center gap-3">
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || uploading}
             className="px-5 py-2 rounded-full bg-accent text-accent-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50"
           >
             {saving ? "Saving…" : "Save profile"}
