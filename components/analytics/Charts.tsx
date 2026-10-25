@@ -2,6 +2,9 @@ import { CARD } from "@/components/ui";
 
 export type ChartPoint = { label: string; value: number };
 
+/** Fixed categorical order from the --chart-* tokens in globals.css; never cycled past eight. */
+export const CHART_COLORS = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => `var(--chart-${n})`);
+
 export function LineChart({
   title,
   points,
@@ -24,7 +27,7 @@ export function LineChart({
         role="img"
         aria-label={`${title}: ${points.reduce((sum, point) => sum + point.value, 0)} in this period`}
         viewBox="0 0 600 210"
-        className="mt-4 w-full text-foreground"
+        className="mt-4 w-full"
       >
         {[0, 0.5, 1].map((fraction) => (
           <g key={fraction}>
@@ -48,14 +51,14 @@ export function LineChart({
         ))}
         <polygon
           points={`40,170 ${coords} 560,170`}
-          fill="currentColor"
-          opacity="0.06"
+          fill="var(--chart-1)"
+          opacity="0.14"
         />
         <polyline
           points={coords}
           fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
+          stroke="var(--chart-1)"
+          strokeWidth="2"
           strokeLinejoin="round"
         />
         {[0, Math.floor((points.length - 1) / 2), points.length - 1].map(
@@ -103,9 +106,11 @@ export function LineChart({
 export function BarChart({
   title,
   points,
+  color = CHART_COLORS[0],
 }: {
   title: string;
   points: ChartPoint[];
+  color?: string;
 }) {
   const max = Math.max(1, ...points.map((point) => point.value));
   return (
@@ -121,8 +126,8 @@ export function BarChart({
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-surface-2">
                 <div
-                  className="h-full rounded-full bg-accent"
-                  style={{ width: `${(point.value / max) * 100}%` }}
+                  className="h-full rounded-full"
+                  style={{ width: `${(point.value / max) * 100}%`, backgroundColor: color }}
                 />
               </div>
             </div>
@@ -145,7 +150,6 @@ export function DonutChart({
   points: ChartPoint[];
 }) {
   const total = points.reduce((sum, point) => sum + point.value, 0);
-  const colors = ["#0f766e", "#6366f1", "#d97706", "#db2777", "#64748b"];
   return (
     <figure className={`${CARD} p-5 sm:p-6`}>
       <figcaption className="font-semibold">{title}</figcaption>
@@ -181,7 +185,7 @@ export function DonutChart({
                 r="45"
                 pathLength="100"
                 fill="none"
-                stroke={colors[index % colors.length]}
+                stroke={CHART_COLORS[index]}
                 strokeWidth="16"
                 strokeDasharray={`${share} ${100 - share}`}
                 strokeDashoffset={-start}
@@ -204,7 +208,7 @@ export function DonutChart({
             <li key={point.label} className="flex items-center gap-2">
               <span
                 className="h-2 w-2 rounded-full"
-                style={{ backgroundColor: colors[index % colors.length] }}
+                style={{ backgroundColor: CHART_COLORS[index] }}
               />
               <span className="text-muted">{point.label}</span>
               <strong className="ml-2">{point.value}</strong>

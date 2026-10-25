@@ -185,7 +185,7 @@ export default async function HomePage() {
           <div className="flex flex-col gap-5">
             <Eyebrow>Why blog</Eyebrow>
             <h2 id="why" className="font-display text-3xl font-medium tracking-tight text-balance sm:text-4xl">
-              A post disappears in a day. A good story keeps working for years.
+              Social posts are forgotten by tomorrow. A good story is still being read years later.
             </h2>
             <ul className="flex flex-col gap-3 text-[15px]">
               {REASONS.map((reason) => (

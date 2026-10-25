@@ -49,7 +49,7 @@ const PROMISES = [
 export default function WhyBlogPage() {
   return (
     <div>
-      <PageIntro eyebrow="Why blog" title="A post disappears in a day. A good story keeps working for years.">
+      <PageIntro eyebrow="Why blog" title="Social posts are forgotten by tomorrow. A good story is still being read years later.">
         Blogging isn’t about chasing a feed. It’s about putting your best thinking somewhere it can be found, read
         properly and built on.
       </PageIntro>

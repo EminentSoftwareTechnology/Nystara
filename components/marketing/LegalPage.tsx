@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 /** Shared typography for long-form legal and informational pages. */
 export function LegalPage({ title, updated, children }: { title: string; updated: string; children: ReactNode }) {
   return (
-    <article className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6 sm:py-16">
+    <article className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
       <header className="mb-10 flex flex-col gap-3 border-b border-border pb-8">
         <h1 className="font-display text-4xl font-medium tracking-tight sm:text-5xl">{title}</h1>
         <p className="text-sm text-muted">Last updated {updated}</p>

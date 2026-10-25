@@ -219,6 +219,7 @@ Email templates, event coverage, unsubscribe and Mailpit checks: [EMAILS.md](EMA
 | `GOOGLE_*`, `GITHUB_*` | optional | OAuth providers |
 | `RESEND_API_KEY` | prod email | Sign-in emails in production |
 | `EMAIL_SERVER`, `EMAIL_FROM` | dev email | Mailpit SMTP in development |
+| `EMAIL_PROVIDER` | optional | `resend` sends development email through Resend |
 | `R2_*` | for uploads | Cloudflare R2 bucket, keys and public URL |
 | `CLAMAV_HOST`, `CLAMAV_PORT` | optional | Upload virus scanning (fails closed when set) |
 | `OPENAI_API_KEY` | for AI editor | Server-only OpenAI Responses API credential; never use a `NEXT_PUBLIC_` key |

@@ -44,7 +44,7 @@ export default function ArticleHero({
         </>
       )}
       <div
-        className={`mx-auto flex max-w-6xl flex-col justify-end px-4 sm:px-6 ${onImage ? "min-h-[440px] pb-10 pt-24 sm:min-h-[520px] sm:pb-14" : "py-14 sm:py-20"}`}
+        className={`mx-auto flex max-w-7xl flex-col justify-end px-4 sm:px-6 ${onImage ? "min-h-[440px] pb-10 pt-24 sm:min-h-[520px] sm:pb-14" : "py-14 sm:py-20"}`}
       >
         <div className="max-w-3xl">
           {(tags.length > 0 || memberOnly) && (

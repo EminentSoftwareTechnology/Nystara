@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
         accounts: { select: { provider: true, providerAccountId: true } },
         subscription: { select: { status: true, currentPeriodEnd: true, cancelAtPeriodEnd: true } },
         mfaEnabled: true, totpEnabledAt: true, emailTheme: true, activityEmails: true, readingHistoryClearedAt: true,
+        digest: { select: { frequency: true, confirmedAt: true, lastSentAt: true, createdAt: true } },
         passkeys: { select: { name: true, createdAt: true, lastUsedAt: true, deviceType: true, backedUp: true } },
       },
     });

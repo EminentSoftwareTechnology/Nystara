@@ -81,14 +81,14 @@ test("comment views name guests and only let the commenter or story author delet
     authorId: null,
     author: null,
   };
-  const guest = toCommentView(row, { userId: null, articleAuthorId: "author" });
+  const guest = toCommentView(row, { userId: null });
   assert.equal(guest.name, "Maya");
   assert.equal(guest.guest, true);
   assert.equal(guest.canDelete, false);
-  assert.equal(toCommentView(row, { userId: "author", articleAuthorId: "author" }).canDelete, true);
+  assert.equal(toCommentView(row, { userId: "author" }).canDelete, false);
   const member = { ...row, guestName: null, authorId: "u1", author: { name: "Liam", username: "liam", avatarUrl: null } };
-  assert.equal(toCommentView(member, { userId: "u1", articleAuthorId: "author" }).canDelete, true);
-  assert.equal(toCommentView(member, { userId: "u2", articleAuthorId: "author" }).canDelete, false);
+  assert.equal(toCommentView(member, { userId: "u1" }).canDelete, true);
+  assert.equal(toCommentView(member, { userId: "u2" }).canDelete, false);
 });
 
 test("story themes fall back to classic for unknown values", () => {

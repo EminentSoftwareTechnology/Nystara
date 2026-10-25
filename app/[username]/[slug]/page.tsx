@@ -138,10 +138,7 @@ export default async function ArticlePage({ params }: Props) {
       : null,
   ]);
   const comments = commentRows.map((row) =>
-    toCommentView(row, {
-      userId: userId ?? null,
-      articleAuthorId: article.authorId,
-    }),
+    toCommentView(row, { userId: userId ?? null }),
   );
   const following = userId
     ? !!(await prisma.follow.findUnique({
@@ -174,8 +171,8 @@ export default async function ArticlePage({ params }: Props) {
           tags={article.tags.map(({ tag }) => tag)}
         />
 
-        <div className="mx-auto grid max-w-6xl gap-12 px-4 py-10 sm:px-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-          <article className="mx-auto w-full min-w-0 max-w-[720px]">
+        <div className="mx-auto grid max-w-7xl gap-12 px-4 py-10 sm:px-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <article className="mx-auto w-full min-w-0 max-w-[720px] xl:mx-0 xl:max-w-none">
             <div className="mb-8 border-b border-border pb-6">
               <ShareBar url={shareUrl} title={article.title} />
               <ArticleLibraryActions

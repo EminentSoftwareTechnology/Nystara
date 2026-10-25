@@ -14,6 +14,7 @@ the pieces fit together, see [ARCHITECTURE.md](ARCHITECTURE.md).
 - [Library](#library)
 - [Following writers and topics](#following-writers-and-topics)
 - [Reader sign-in](#reader-sign-in)
+- [Digest subscriptions](#digest-subscriptions)
 - [Account](#account)
 - [Security settings (MFA)](#security-settings-mfa)
 - [Admin](#admin)
@@ -224,7 +225,7 @@ parent not found), `429`.
 
 ### `DELETE /api/comments/{id}`
 
-**Session.** The commenter or the story's author. Soft delete: replies stay.
+**Session.** The commenter only; story authors cannot remove readers' comments. Soft delete: replies stay.
 `204`. Errors: `401`, `403`, `404`.
 
 ### `PUT /api/articles/{id}/feedback`
@@ -486,6 +487,29 @@ code. Each account gets 10 attempts per 15 minutes.
 
 ---
 
+## Digest subscriptions
+
+### `POST /api/newsletter`
+
+Subscribe an email address to the story digest. **Public.** Limits: 10 requests
+per hour per IP, 3 confirmation emails per hour per address (further requests
+still return `202` but send nothing).
+
+`{ "email": "reader@example.com", "frequency": "DAILY" | "WEEKLY" | "MONTHLY", "turnstileToken": "…" }`
+
+`202 { "message": "Check your inbox to confirm your subscription." }`, whether or
+not the address is already subscribed. The confirmation link (7 days) applies
+the requested frequency. Errors: `400` (invalid input or failed Turnstile),
+`429`, `502` (email could not be sent).
+
+### `GET` / `POST /newsletter/confirm?token=…` and `/newsletter/unsubscribe?token=…`
+
+Email links, not JSON APIs. `GET` shows a page with a button and changes
+nothing; `POST` confirms or unsubscribes. Unsubscribe `POST` also serves
+mailbox one-click unsubscribe (RFC 8058) and deletes the subscriber.
+
+---
+
 ## Account
 
 ### `PATCH /api/me`
@@ -499,14 +523,24 @@ photo, or pass null to remove it. A new URL must belong to your upload prefix.
 
 `200 { "saved": true }`. Errors: `401`, `400`.
 
+### `PATCH /api/me/notifications`
+
+Save email preferences. **Session.**
+`{ "emailTheme": "light" | "dark" | "sand", "activityEmails": true, "digest": "OFF" | "DAILY" | "WEEKLY" | "MONTHLY" }`.
+`digest` is optional; omit it to keep the current digest choice. A frequency
+subscribes the account email immediately (it is already verified) and replaces
+any visitor signup for that address; `OFF` removes it.
+
+`200 { "saved": true }`. Errors: `401`, `400`.
+
 ### `DELETE /api/me`
 
 Erase your account. **Session.** Admin accounts are refused (`400`); another
 admin must delete them.
 
 Order: cancel a live Stripe subscription, delete your uploaded images from R2,
-then delete verification tokens, reading records and the user (everything else
-cascades). Other people's replies to your comments remain.
+then delete verification tokens, digest signups for the same address, reading
+records and the user (everything else cascades). Other people's replies to your comments remain.
 
 `204`. Errors: `401`, `404`, `400`. A storage or billing failure returns `500`
 and nothing is deleted from the database; retry.
@@ -528,6 +562,7 @@ Without `section`:
     "accounts": [{ "provider": "github", "providerAccountId": "…" }],
     "subscription": null,
     "mfaEnabled": true, "totpEnabledAt": "…",
+    "digest": { "frequency": "WEEKLY", "confirmedAt": "…", "lastSentAt": null, "createdAt": "…" },
     "passkeys": [{ "name": "MacBook", "createdAt": "…", "lastUsedAt": "…", "deviceType": "multiDevice", "backedUp": true }]
   },
   "sections": ["/api/me/export?section=articles", "…"]
@@ -641,7 +676,7 @@ every admin session for this account and clears the cookie.
 | Query | Description |
 | --- | --- |
 | `page` | 1–1000, default 1 |
-| `q` | Search email, name or username (case-insensitive, up to 200 characters) |
+| `q` | Name or username contains (case-insensitive), or an exact full email address (emails are encrypted at rest); up to 200 characters |
 
 `200 { "users": [{ "id", "email", "name", "username", "role", "avatarUrl", "createdAt", "_count": { "articles" } }], "total", "page", "pages" }`.
 

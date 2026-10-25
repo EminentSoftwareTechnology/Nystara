@@ -1,9 +1,10 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { fieldEncryption } from "./prisma-encryption";
 
 function createPrismaClient() {
   const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL!, max: 10, connectionTimeoutMillis: 5000, statement_timeout: 10000 });
-  return new PrismaClient({ adapter, errorFormat: "minimal" });
+  return new PrismaClient({ adapter, errorFormat: "minimal" }).$extends(fieldEncryption);
 }
 
 const globalForPrisma = globalThis as unknown as {

@@ -16,7 +16,8 @@ export async function GET(req: NextRequest) {
   const where = search
     ? {
         OR: [
-          { email: { contains: search, mode: "insensitive" as const } },
+          // Email is encrypted at rest: a full address matches exactly.
+          { email: search },
           { name: { contains: search, mode: "insensitive" as const } },
           { username: { contains: search, mode: "insensitive" as const } },
         ],

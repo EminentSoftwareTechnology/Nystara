@@ -87,10 +87,7 @@ export async function POST(
     await notifyUser(article.authorId, "comment-received", { actionPath });
   }
   return NextResponse.json(
-    toCommentView(comment, {
-      userId: voter.userId,
-      articleAuthorId: article.authorId,
-    }),
+    toCommentView(comment, { userId: voter.userId }),
     { status: 201 },
   );
 }
