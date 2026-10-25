@@ -49,9 +49,20 @@ admin console manages users and articles.
 - **Video**: YouTube and Vimeo links become click-to-load previews.
 - **Drafts**: explicit "Save draft" to the server, plus a copy in the browser's
   local storage so a closed tab or crash does not lose writing.
-- **AI editor** (`/ai-editor`): polish, shorten, expand, outline, title ideas and
-  editorial feedback through the OpenAI Responses API. Premium members only, 30
-  requests per day. Suggestions can be copied or appended to the current draft.
+- **AI editor** (`/ai-editor`): private, account-backed writing conversations with
+  follow-up questions, conversation history/deletion, starter prompts, and copy or
+  append-to-story actions through the OpenAI Responses API. Supports up to three
+  text, Markdown, CSV, JSON, PDF, PNG or JPEG attachments, totalling 500 KB per
+  message. Premium membership is required in production; development users can
+  test without a subscription. Limited to 30 requests per user per day.
+
+AI messages and attachments remain in PostgreSQL until the conversation or account
+is deleted. Account export includes separate paginated `aiConversations` and
+`aiMessages` sections, including attachment data. Messages and attached material
+are sent to OpenAI with `store: false`; [provider abuse-monitoring retention](https://developers.openai.com/api/docs/guides/your-data)
+may still apply. Review suggestions before publishing. Requests include up to 12
+recent messages, capped at 60,000 text characters and 500 KB of previous attachment
+data, plus the new message and its attachments. No remote file URLs are fetched.
 - **Writer pages**: Stories, Stats, Audience, Library, Following and Find writers
   under `/me/*`.
 
@@ -93,10 +104,7 @@ advertise them as features.
 - **Billing**: Stripe is installed and `Subscription` rows are honoured, but there
   is no checkout, customer portal or webhook. Premium access is granted only by
   writing a `Subscription` row directly.
-- **Claps, bookmarks and follows**: shown in feeds, stats and the library, but no
-  API creates them. Only the demo seeder fills them. The profile **Follow** button
-  and the header **Notifications** bell do nothing.
-- **Tag pages**: tag chips link to `/tag/{slug}`, which has no page yet (404).
+- **Notifications inbox**: the header Notifications bell has no inbox yet.
 - **Search**: the `search_vector` full-text column and GIN index exist; there is
   no search endpoint or UI.
 - **Email notifications and digests**, OG image generation, sitemap and RSS.
@@ -165,14 +173,17 @@ Notes:
 # First administrator (password: 12+ characters, at most 72 UTF-8 bytes)
 ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='a-long-unique-password' npm run db:seed
 
-# Demo content: 50 users (user1@gmail.com … user50@gmail.com) and 10 published
-# stories with tags, claps, comments, bookmarks and follows.
+# Demo content: 50 users (user1@example.test … user50@example.test), 260
+# stories across every status, avatars, 50 lists, highlights, reading activity,
+# comments, ratings, follows, topic follows and example AI conversations.
 npm run db:seed:demo
 ```
 
 The demo seeder is safe to re-run and refuses to run with `NODE_ENV=production`.
 Demo users still go through account setup (name and second factor) on first
-sign-in.
+sign-in. Handles are `demo-user1` through `demo-user50`; activity emails are disabled.
+The seeder writes illustrated avatars to `public/demo/avatars` and only replaces
+its own demo story slugs. Scheduled demo stories are one week ahead.
 
 ## Scripts
 
@@ -210,7 +221,8 @@ Email templates, event coverage, unsubscribe and Mailpit checks: [EMAILS.md](EMA
 | `EMAIL_SERVER`, `EMAIL_FROM` | dev email | Mailpit SMTP in development |
 | `R2_*` | for uploads | Cloudflare R2 bucket, keys and public URL |
 | `CLAMAV_HOST`, `CLAMAV_PORT` | optional | Upload virus scanning (fails closed when set) |
-| `OPENAI_API_KEY`, `OPENAI_MODEL` | for AI editor | Responses API key and model |
+| `OPENAI_API_KEY` | for AI editor | Server-only OpenAI Responses API credential; never use a `NEXT_PUBLIC_` key |
+| `OPENAI_MODEL` | optional | OpenAI model; defaults to `gpt-4.1-mini` |
 | `STRIPE_SECRET_KEY` | for erasure of subscribers | Used only to cancel a subscription during account erasure |
 | `TRUST_PROXY_IP` | optional | `1` only behind an ingress that overwrites `X-Forwarded-For` |
 

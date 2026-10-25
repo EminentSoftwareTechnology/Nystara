@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { Avatar } from "@/components/layout/Avatar";
 import type { FeedbackSummary } from "@/lib/engagement";
 
-type Props = { articleId: string; initial: FeedbackSummary };
+type Props = { articleId: string; initial: FeedbackSummary; viewer?: { name: string; avatarUrl: string | null } | null };
 type Change = { reaction?: "LIKE" | "DISLIKE" | null; rating?: number | null };
 
 function Thumb({ down = false }: { down?: boolean }) {
@@ -36,7 +37,7 @@ function optimistic(summary: FeedbackSummary, change: Change): FeedbackSummary {
   return next;
 }
 
-export default function ArticleFeedback({ articleId, initial }: Props) {
+export default function ArticleFeedback({ articleId, initial, viewer }: Props) {
   const [summary, setSummary] = useState(initial);
   const [hover, setHover] = useState(0);
   const [error, setError] = useState("");
@@ -81,6 +82,7 @@ export default function ArticleFeedback({ articleId, initial }: Props) {
 
   return (
     <section aria-label="Your feedback" className="rounded-2xl border border-border bg-background p-5 sm:p-6">
+      {viewer && <div className="mb-4 flex items-center gap-2 text-sm text-muted"><Avatar src={viewer.avatarUrl} name={viewer.name} size={28} /><span>Rating as {viewer.name}</span></div>}
       <div className="flex flex-wrap items-center justify-between gap-6">
         <div>
           <h2 className="text-sm font-semibold">Did you enjoy this story?</h2>

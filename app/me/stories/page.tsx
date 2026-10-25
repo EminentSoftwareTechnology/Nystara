@@ -4,155 +4,192 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import AppShell from "@/components/layout/AppShell";
+import { buttonClass, CARD } from "@/components/ui";
+import { publishDueStories, STORY_TABS, storyTab } from "@/lib/story-status";
+import StoryActions from "./StoryActions";
 
 export const dynamic = "force-dynamic";
 
-export default async function StoriesPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
-  const page = parsePage((await searchParams).page);
+export default async function StoriesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; tab?: string }>;
+}) {
+  const params = await searchParams;
+  const page = parsePage(params.page);
+  const tab = storyTab(params.tab);
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
-
-  const articles = await prisma.article.findMany({
-    where: { authorId: session.user.id },
-    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
-    skip: (page - 1) * 20,
-    take: 21,
-    select: {
-      id: true,
-      slug: true,
-      title: true,
-      subtitle: true,
-      published: true,
-      memberOnly: true,
-      publishedAt: true,
-      updatedAt: true,
-      readTime: true,
-      author: { select: { username: true } },
-      _count: { select: { claps: true, comments: true, views: true } },
-    },
-  });
-
-  const hasNext = articles.length > 20;
-  const items = articles.slice(0, 20);
-  const drafts = items.filter((a) => !a.published);
-  const published = items.filter((a) => a.published);
-
+  await publishDueStories();
+  const conditions = {
+    drafts: { published: false, scheduledAt: null, submittedAt: null },
+    scheduled: { published: false, scheduledAt: { not: null } },
+    published: { published: true, unlisted: false },
+    unlisted: { published: true, unlisted: true },
+    submissions: { published: false, submittedAt: { not: null } },
+  };
+  const [articles, counts] = await Promise.all([
+    prisma.article.findMany({
+      where: { authorId: session.user.id, ...conditions[tab] },
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+      skip: (page - 1) * 20,
+      take: 21,
+      select: {
+        id: true,
+        slug: true,
+        title: true,
+        subtitle: true,
+        updatedAt: true,
+        scheduledAt: true,
+        publishedAt: true,
+        readTime: true,
+        author: { select: { username: true } },
+        _count: {
+          select: { views: true, comments: { where: { deletedAt: null } } },
+        },
+      },
+    }),
+    Promise.all(
+      STORY_TABS.map((key) =>
+        prisma.article.count({
+          where: { authorId: session.user.id, ...conditions[key] },
+        }),
+      ),
+    ),
+  ]);
+  const descriptions = {
+    drafts: "Your next good idea starts here. Pick up where you left off.",
+    scheduled: "Stories ready to meet readers at the time you choose.",
+    published: "Your writing, out in the world.",
+    unlisted: "Share a direct link with a smaller circle.",
+    submissions:
+      "Stories you've submitted for editorial review. They remain private until published.",
+  };
   return (
     <AppShell>
-      <div className="max-w-none w-full mx-auto px-6 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Stories</h1>
-          <Link
-            href="#"
-            className="px-4 py-2 rounded-full border border-gray-300 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors"
-          >
-            Import a story
-          </Link>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-1 overflow-x-auto border-b border-gray-200 dark:border-gray-800 mb-8">
-          {["Drafts", "Scheduled", "Published", "Unlisted", "Submissions"].map((tab, i) => (
-            <button
-              key={tab}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                i === 0
-                  ? "border-gray-900 dark:border-white text-gray-900 dark:text-white"
-                  : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
-
-        {/* Drafts */}
-        {drafts.length === 0 ? (
-          <div className="py-20 text-center">
-            <p className="text-lg font-semibold text-gray-900 dark:text-white mb-1">No drafts on this page.</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Why not{" "}
-              <Link href="/new-story" className="underline hover:no-underline">
-                start writing one?
-              </Link>
-            </p>
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-8">
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-sm text-muted">Your writing desk</p>
+            <h1 className="mt-1 font-display text-4xl">Stories</h1>
           </div>
-        ) : (
-          <div className="divide-y divide-gray-100 dark:divide-gray-800">
-            {drafts.map((article) => (
-              <div key={article.id} className="py-5 flex items-start justify-between gap-4">
-                <div className="min-w-0 flex-1">
+          <div className="flex gap-2">
+            <Link
+              href="/me/stories/import"
+              className={buttonClass("secondary")}
+            >
+              Import story
+            </Link>
+            <Link href="/new-story" className={buttonClass()}>
+              Write a story
+            </Link>
+          </div>
+        </div>
+        <nav
+          aria-label="Story status"
+          className="mb-6 flex gap-5 overflow-x-auto border-b border-border"
+        >
+          {STORY_TABS.map((key, index) => (
+            <Link
+              key={key}
+              href={`/me/stories?tab=${key}`}
+              aria-current={key === tab ? "page" : undefined}
+              className={`whitespace-nowrap border-b-2 py-3 text-sm capitalize ${key === tab ? "border-foreground font-semibold" : "border-transparent text-muted"}`}
+            >
+              {key}{" "}
+              <span className="ml-1 text-xs text-muted">{counts[index]}</span>
+            </Link>
+          ))}
+        </nav>
+        <p className="mb-6 text-sm text-muted">{descriptions[tab]}</p>
+        {articles.length ? (
+          <div className="space-y-4">
+            {articles.slice(0, 20).map((article) => (
+              <article key={article.id} className={`${CARD} p-5 sm:p-6`}>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <Link
+                      href={`/editor/${article.id}`}
+                      className="font-display text-2xl hover:underline"
+                    >
+                      {article.title}
+                    </Link>
+                    {article.subtitle && (
+                      <p className="mt-1 line-clamp-2 text-sm text-muted">
+                        {article.subtitle}
+                      </p>
+                    )}
+                    <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted">
+                      <span>{article.readTime} min read</span>
+                      <span>
+                        Edited {article.updatedAt.toLocaleDateString("en-GB")}
+                      </span>
+                      {article.scheduledAt && (
+                        <span>
+                          Publishes{" "}
+                          {article.scheduledAt.toLocaleString("en-GB", {
+                            timeZone: "UTC",
+                          })}{" "}
+                          UTC
+                        </span>
+                      )}
+                      {article.publishedAt && (
+                        <>
+                          <span>{article._count.views} views</span>
+                          <span>{article._count.comments} responses</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
                   <Link
                     href={`/editor/${article.id}`}
-                    className="text-base font-semibold text-gray-900 dark:text-white hover:underline line-clamp-1"
-                  >
-                    {article.title || "Untitled"}
-                  </Link>
-                  {article.subtitle && (
-                    <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400 line-clamp-1">{article.subtitle}</p>
-                  )}
-                  <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                    Last edited{" "}
-                    {new Date(article.updatedAt).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <Link
-                    href={`/editor/${article.id}`}
-                    className="px-3 py-1.5 text-xs font-medium rounded-full bg-green-600 text-white hover:bg-green-700 transition-colors"
+                    className={buttonClass("secondary", "sm")}
                   >
                     Edit
                   </Link>
                 </div>
-              </div>
+                <StoryActions id={article.id} tab={tab} />
+                {article.publishedAt && article.author.username && (
+                  <Link
+                    href={`/${article.author.username}/${article.slug}`}
+                    className="mt-3 inline-block text-sm underline"
+                  >
+                    View story
+                  </Link>
+                )}
+              </article>
             ))}
           </div>
-        )}
-
-        {/* Published section */}
-        {published.length > 0 && (
-          <div className="mt-10">
-            <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">Published</h2>
-            <div className="divide-y divide-gray-100 dark:divide-gray-800">
-              {published.map((article) => {
-                return (
-                  <div key={article.id} className="py-5 flex items-start justify-between gap-4">
-                    <div className="min-w-0 flex-1">
-                      <Link
-                        href={article.author.username ? `/${article.author.username}/${article.slug}` : `/editor/${article.id}`}
-                        className="text-base font-semibold text-gray-900 dark:text-white hover:underline line-clamp-1"
-                      >
-                        {article.title}
-                      </Link>
-                      <div className="mt-1 flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
-                        <span>{article._count.views} views</span>
-                        <span>{article._count.claps} claps</span>
-                        <span>{article._count.comments} comments</span>
-                        {article.memberOnly && (
-                          <span className="px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-800 text-xs">Member</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0 text-xs text-gray-500 dark:text-gray-400">
-                      {article.publishedAt && (
-                        <span>
-                          {new Date(article.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+        ) : (
+          <div className={`${CARD} py-16 text-center`}>
+            <h2 className="font-display text-2xl">No {tab} yet</h2>
+            <p className="mt-2 text-sm text-muted">
+              Every story starts with a first sentence.
+            </p>
+            <Link
+              href="/new-story"
+              className={buttonClass("primary", "md", "mt-5")}
+            >
+              Start writing
+            </Link>
           </div>
         )}
-        <nav aria-label="Story pages" className="flex justify-between mt-8 text-sm">
-          {page > 1 ? <Link href={`/me/stories?page=${page - 1}`}>Previous page</Link> : <span />}
-          {hasNext && page < 1000 && <Link href={`/me/stories?page=${page + 1}`}>Next page</Link>}
+        <nav
+          aria-label="Story pages"
+          className="mt-8 flex justify-between text-sm"
+        >
+          {page > 1 ? (
+            <Link href={`/me/stories?tab=${tab}&page=${page - 1}`}>
+              Previous page
+            </Link>
+          ) : (
+            <span />
+          )}
+          {articles.length > 20 && page < 1000 && (
+            <Link href={`/me/stories?tab=${tab}&page=${page + 1}`}>
+              Next page
+            </Link>
+          )}
         </nav>
       </div>
     </AppShell>

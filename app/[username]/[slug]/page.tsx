@@ -1,3 +1,4 @@
+import { publishDueStories } from "@/lib/story-status";
 import { cache } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
@@ -22,6 +23,8 @@ import ShareBar from "@/components/article/ShareBar";
 import ArticleFeedback from "@/components/article/ArticleFeedback";
 import Comments from "@/components/article/Comments";
 import TrendingRail from "@/components/article/TrendingRail";
+import ArticleLibraryActions from "@/components/library/ArticleLibraryActions";
+import FollowButton from "@/components/social/FollowButton";
 import BackToTop from "@/components/article/BackToTop";
 
 type Props = {
@@ -29,6 +32,7 @@ type Props = {
 };
 
 const loadArticle = cache(async (username: string, slug: string) => {
+  await publishDueStories();
   const author = await prisma.user.findUnique({
     where: { username },
     select: { id: true },
@@ -49,7 +53,9 @@ const loadArticle = cache(async (username: string, slug: string) => {
       published: true,
       publishedAt: true,
       theme: true,
-      author: { select: { username: true, name: true, avatarUrl: true } },
+      author: {
+        select: { username: true, name: true, avatarUrl: true, image: true },
+      },
       tags: { select: { tag: { select: { name: true, slug: true } } } },
     },
   });
@@ -60,7 +66,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { username, slug } = await params;
   const article = await loadArticle(username, slug);
   if (!article) return {};
-  const description = article.subtitle ?? extractExcerpt(article.contentText).slice(0, 200);
+  const description =
+    article.subtitle ?? extractExcerpt(article.contentText).slice(0, 200);
   const images = article.coverImage ? [article.coverImage] : undefined;
   return {
     title: article.title,
@@ -102,7 +109,8 @@ export default async function ArticlePage({ params }: Props) {
       select: { status: true, currentPeriodEnd: true },
     });
     subscriber =
-      (sub?.status === "ACTIVE" || sub?.status === "TRIALING") && sub.currentPeriodEnd > new Date();
+      (sub?.status === "ACTIVE" || sub?.status === "TRIALING") &&
+      sub.currentPeriodEnd > new Date();
   }
   if (article.memberOnly && !subscriber) {
     // Logged-in non-members get the same free quota as anonymous visitors. The check also records the view.
@@ -123,13 +131,33 @@ export default async function ArticlePage({ params }: Props) {
     trendingArticles(5),
     mostViewedToday(5),
     userId
-      ? prisma.user.findUnique({ where: { id: userId }, select: { name: true, username: true } })
+      ? prisma.user.findUnique({
+          where: { id: userId },
+          select: { name: true, username: true, avatarUrl: true, image: true },
+        })
       : null,
   ]);
   const comments = commentRows.map((row) =>
-    toCommentView(row, { userId: userId ?? null, articleAuthorId: article.authorId }),
+    toCommentView(row, {
+      userId: userId ?? null,
+      articleAuthorId: article.authorId,
+    }),
   );
-  const shareUrl = new URL(`/${username}/${slug}`, process.env.NEXTAUTH_URL).toString();
+  const following = userId
+    ? !!(await prisma.follow.findUnique({
+        where: {
+          followerId_followingId: {
+            followerId: userId,
+            followingId: article.authorId,
+          },
+        },
+        select: { followerId: true },
+      }))
+    : false;
+  const shareUrl = new URL(
+    `/${username}/${slug}`,
+    process.env.NEXTAUTH_URL,
+  ).toString();
   const theme = toStoryTheme(article.theme);
 
   return (
@@ -150,11 +178,31 @@ export default async function ArticlePage({ params }: Props) {
           <article className="mx-auto w-full min-w-0 max-w-[720px]">
             <div className="mb-8 border-b border-border pb-6">
               <ShareBar url={shareUrl} title={article.title} />
+              <ArticleLibraryActions
+                articleId={article.id}
+                signedIn={!!userId}
+              />
+              {userId !== article.authorId && (
+                <div className="mt-4 flex items-center gap-3">
+                  <span className="text-sm text-muted">
+                    Read more from{" "}
+                    {article.author.name ?? article.author.username}
+                  </span>
+                  <FollowButton
+                    writerId={article.authorId}
+                    initialFollowing={following}
+                  />
+                </div>
+              )}
             </div>
 
             <StoryContent
               content={paywalled ? null : article.content}
-              text={paywalled ? extractExcerpt(article.contentText) : article.contentText}
+              text={
+                paywalled
+                  ? extractExcerpt(article.contentText)
+                  : article.contentText
+              }
             />
 
             {paywalled && (
@@ -175,14 +223,32 @@ export default async function ArticlePage({ params }: Props) {
             )}
 
             <div className="mt-12 space-y-8">
-              <ArticleFeedback articleId={article.id} initial={feedback} />
+              <ArticleFeedback
+                articleId={article.id}
+                initial={feedback}
+                viewer={
+                  viewer
+                    ? {
+                        name: viewer.name ?? viewer.username ?? "Reader",
+                        avatarUrl: viewer.avatarUrl ?? viewer.image,
+                      }
+                    : null
+                }
+              />
               <div className="border-y border-border py-5">
                 <ShareBar url={shareUrl} title={article.title} />
               </div>
               <Comments
                 articleId={article.id}
                 initial={comments}
-                viewer={viewer ? { name: viewer.name ?? viewer.username } : null}
+                viewer={
+                  viewer
+                    ? {
+                        name: viewer.name ?? viewer.username,
+                        avatarUrl: viewer.avatarUrl ?? viewer.image,
+                      }
+                    : null
+                }
               />
             </div>
           </article>

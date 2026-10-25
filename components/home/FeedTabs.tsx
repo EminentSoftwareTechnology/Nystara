@@ -12,7 +12,7 @@ type Article = {
   readTime: number;
   memberOnly: boolean;
   publishedAt: Date | null;
-  author: { username: string | null; name: string | null; avatarUrl: string | null };
+  author: { username: string | null; name: string | null; avatarUrl: string | null; image?: string | null };
   tags: { tag: { name: string; slug: string } }[];
   _count: { claps: number; comments: number };
 };

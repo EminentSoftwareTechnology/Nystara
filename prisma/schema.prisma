@@ -12,36 +12,43 @@ enum UserRole {
 }
 
 model User {
-  id               String   @id @default(cuid())
-  email            String   @unique
+  id               String    @id @default(cuid())
+  email            String    @unique
   emailVerified    DateTime?
   image            String?
   name             String?
-  username         String?  @unique
+  username         String?   @unique
   bio              String?
   avatarUrl        String?
-  role             UserRole @default(USER)
+  role             UserRole  @default(USER)
   passwordHash     String?
-  sessionVersion   Int      @default(0)
-  createdAt        DateTime @default(now())
-  stripeCustomerId String?  @unique
+  sessionVersion   Int       @default(0)
+  createdAt        DateTime  @default(now())
+  stripeCustomerId String?   @unique
   emailTheme       String    @default("light")
   activityEmails   Boolean   @default(true)
   mfaEnabled       Boolean   @default(false)
   totpSecret       String?
   totpEnabledAt    DateTime?
   totpLastStep     Int?
+  readingHistoryClearedAt DateTime?
 
-  accounts     Account[]
-  sessions     Session[]
-  articles     Article[]
-  comments     Comment[]
-  claps        Clap[]
-  bookmarks    Bookmark[]
-  feedback     ArticleFeedback[]
-  following    Follow[]      @relation("follower")
-  followers    Follow[]      @relation("following")
-  subscription Subscription?
+  readingLists    ReadingList[]
+  savedLists      SavedList[]
+  highlights      Highlight[]
+  topicFollows    TopicFollow[]
+  aiConversations AiConversation[]
+
+  accounts      Account[]
+  sessions      Session[]
+  articles      Article[]
+  comments      Comment[]
+  claps         Clap[]
+  bookmarks     Bookmark[]
+  feedback      ArticleFeedback[]
+  following     Follow[]          @relation("follower")
+  followers     Follow[]          @relation("following")
+  subscription  Subscription?
   passkeys      Passkey[]
   recoveryCodes RecoveryCode[]
 }
@@ -59,18 +66,23 @@ model Article {
   memberOnly  Boolean   @default(false)
   publishedAt DateTime?
   theme       String    @default("classic")
+  scheduledAt DateTime?
+  unlisted    Boolean   @default(false)
+  submittedAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   authorId String
   author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
-  tags      ArticleTag[]
-  comments  Comment[]
-  claps     Clap[]
-  bookmarks Bookmark[]
-  views     ArticleView[]
-  feedback  ArticleFeedback[]
+  tags       ArticleTag[]
+  comments   Comment[]
+  claps      Clap[]
+  bookmarks  Bookmark[]
+  views      ArticleView[]
+  feedback   ArticleFeedback[]
+  listItems  ReadingListItem[]
+  highlights Highlight[]
 
   @@unique([authorId, slug])
   @@index([published, publishedAt])
@@ -78,10 +90,11 @@ model Article {
 }
 
 model Tag {
-  id       String       @id @default(cuid())
-  name     String       @unique
-  slug     String       @unique
-  articles ArticleTag[]
+  id        String        @id @default(cuid())
+  name      String        @unique
+  slug      String        @unique
+  articles  ArticleTag[]
+  followers TopicFollow[]
 }
 
 model ArticleTag {
@@ -226,7 +239,7 @@ model Account {
 }
 
 model Session {
-  id           String   @id @default(cuid())
+  id            String    @id @default(cuid())
   sessionToken  String    @unique
   userId        String
   expires       DateTime
@@ -282,4 +295,90 @@ model AuthChallenge {
   expiresAt DateTime
 
   @@index([expiresAt])
+}
+
+model ReadingList {
+  id          String            @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  isPublic    Boolean           @default(false)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items       ReadingListItem[]
+  saves       SavedList[]
+
+  @@index([userId])
+}
+
+model ReadingListItem {
+  listId    String
+  articleId String
+  createdAt DateTime    @default(now())
+  list      ReadingList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  article   Article     @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@id([listId, articleId])
+  @@index([articleId])
+}
+
+model SavedList {
+  userId    String
+  listId    String
+  createdAt DateTime    @default(now())
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  list      ReadingList @relation(fields: [listId], references: [id], onDelete: Cascade)
+
+  @@id([userId, listId])
+  @@index([listId])
+}
+
+model Highlight {
+  id        String   @id @default(cuid())
+  userId    String
+  articleId String
+  quote     String
+  note      String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([articleId])
+}
+
+model TopicFollow {
+  userId    String
+  tagId     String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([userId, tagId])
+  @@index([tagId])
+}
+
+model AiConversation {
+  id        String      @id @default(cuid())
+  userId    String
+  title     String
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  AiMessage[]
+
+  @@index([userId, updatedAt])
+}
+
+model AiMessage {
+  id             String         @id @default(cuid())
+  conversationId String
+  role           String
+  content        String
+  attachments    Json?
+  createdAt      DateTime       @default(now())
+  conversation   AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
 }

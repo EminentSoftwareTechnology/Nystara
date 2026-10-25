@@ -36,6 +36,7 @@ export default async function EditStoryPage({
         name: true,
         username: true,
         avatarUrl: true,
+        image: true,
       },
     }),
   ]);
@@ -45,7 +46,7 @@ export default async function EditStoryPage({
     <StoryEditor
       name={user.name}
       email={session.user.email ?? null}
-      avatarUrl={user.avatarUrl}
+      avatarUrl={user.avatarUrl ?? user.image}
       username={user.username}
       initial={{
         ...article,

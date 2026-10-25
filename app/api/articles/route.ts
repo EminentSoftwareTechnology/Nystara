@@ -1,3 +1,4 @@
+import { publishDueStories } from "@/lib/story-status";
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -12,6 +13,7 @@ import { storyTheme } from "@/lib/story-theme";
 const PAGE_SIZE = 20;
 
 export async function GET(req: NextRequest) {
+  await publishDueStories();
   const { searchParams } = req.nextUrl;
   const tag = searchParams.get("tag") ?? undefined;
   const cursor = searchParams.get("cursor") ?? undefined;
@@ -19,6 +21,7 @@ export async function GET(req: NextRequest) {
   const articles = await prisma.article.findMany({
     where: {
       published: true,
+      unlisted: false,
       ...(tag ? { tags: { some: { tag: { slug: tag } } } } : {}),
     },
     orderBy: { publishedAt: "desc" },
@@ -33,7 +36,7 @@ export async function GET(req: NextRequest) {
       readTime: true,
       memberOnly: true,
       publishedAt: true,
-      author: { select: { username: true, name: true, avatarUrl: true } },
+      author: { select: { username: true, name: true, avatarUrl: true, image: true } },
       tags: { select: { tag: { select: { name: true, slug: true } } } },
       _count: { select: { claps: true, comments: true } },
     },

@@ -3,12 +3,13 @@
 import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import TurnstileWidget from "@/components/auth/TurnstileWidget";
+import { Avatar as ProfileAvatar } from "@/components/layout/Avatar";
 import type { CommentView } from "@/lib/comments";
 
 type Props = {
   articleId: string;
   initial: CommentView[];
-  viewer: { name: string | null } | null;
+  viewer: { name: string | null; avatarUrl?: string | null } | null;
 };
 
 const NAME_KEY = "nystara:comment-name";
@@ -104,7 +105,8 @@ function CommentForm({
   return (
     <form onSubmit={submit} className="space-y-3">
       {viewer ? (
-        <p className="text-sm text-muted">
+        <p className="flex items-center gap-2 text-sm text-muted">
+          <ProfileAvatar src={viewer.avatarUrl ?? null} name={viewer.name ?? "Reader"} size={28} />
           Commenting as <span className="font-medium text-foreground">{viewer.name ?? "you"}</span>
         </p>
       ) : (

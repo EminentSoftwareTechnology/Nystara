@@ -102,9 +102,20 @@ explains the flows in detail.
 - **Video previews** call fixed oEmbed endpoints only, reject redirects, time
   out after 8 seconds and validate thumbnail hosts. The server never fetches a
   user-chosen URL.
-- **AI editor** sends text only to the OpenAI Responses API with `store: false`,
-  a 45-second timeout and a 2,000-token output cap, after checking premium
-  access on every request.
+- **AI editor** sends messages and attachments only to the OpenAI Responses API
+  with `store: false`, a 60-second timeout and a 3,000-token output cap, after
+  checking premium access on every request (skipped only in development).
+  Attachments are limited to 3 allow-listed types totalling 500 KB and are
+  framed as source material, not instructions. Conversations are owner-scoped,
+  stored in the database, deleted on account erasure and included in the export.
+  Model output is shown as plain text.
+- **Library and follows**: list, highlight, follow and topic changes are
+  owner-scoped and limited to 120 per user per 10 minutes. Highlights must quote
+  text the reader can access, so locked member text cannot be stored through a
+  highlight. Unlisted stories cannot be added to public lists, and public lists
+  never show them to other readers.
+- **Story status** changes are author-only; unlisted and unpublished stories stay
+  out of feeds, topic pages and discovery.
 - **Turnstile verification** has a 5-second timeout; production rejects missing
   or documented test keys.
 

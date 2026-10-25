@@ -84,7 +84,7 @@ export type RankedArticle = {
 async function rankedArticles(scores: Map<string, { score: number; views: number }>, limit: number) {
   const ids = [...scores.entries()].sort((a, b) => b[1].score - a[1].score).map(([id]) => id);
   const articles = await prisma.article.findMany({
-    where: { id: { in: ids }, published: true, author: { username: { not: null } } },
+    where: { id: { in: ids }, published: true, unlisted: false, author: { username: { not: null } } },
     select: {
       id: true,
       slug: true,

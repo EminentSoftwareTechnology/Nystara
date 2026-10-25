@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { rateLimit } from "@/lib/rate-limit";
 
-const sections = ["articles", "comments", "claps", "bookmarks", "following", "followers", "views", "feedback"] as const;
+const sections = ["articles", "comments", "claps", "bookmarks", "following", "followers", "views", "feedback", "readingLists", "readingListItems", "savedLists", "highlights", "topicFollows", "aiConversations", "aiMessages"] as const;
 const take = 20;
 
 export async function GET(req: NextRequest) {
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
         bio: true, avatarUrl: true, image: true, createdAt: true, stripeCustomerId: true,
         accounts: { select: { provider: true, providerAccountId: true } },
         subscription: { select: { status: true, currentPeriodEnd: true, cancelAtPeriodEnd: true } },
-        mfaEnabled: true, totpEnabledAt: true, emailTheme: true, activityEmails: true,
+        mfaEnabled: true, totpEnabledAt: true, emailTheme: true, activityEmails: true, readingHistoryClearedAt: true,
         passkeys: { select: { name: true, createdAt: true, lastUsedAt: true, deviceType: true, backedUp: true } },
       },
     });
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
   switch (section) {
     case "articles": {
       const data = await prisma.article.findMany({ where: { authorId: userId, ...byId }, ...options,
-        select: { id: true, slug: true, title: true, subtitle: true, content: true, contentText: true, coverImage: true, published: true, memberOnly: true, createdAt: true, updatedAt: true, publishedAt: true, tags: { select: { tag: { select: { slug: true } } } } } });
+        select: { id: true, slug: true, title: true, subtitle: true, content: true, contentText: true, coverImage: true, published: true, memberOnly: true, unlisted: true, scheduledAt: true, submittedAt: true, createdAt: true, updatedAt: true, publishedAt: true, tags: { select: { tag: { select: { slug: true } } } } } });
       rows = data; keys = data.map((row) => row.id); break;
     }
     case "comments": {
@@ -70,6 +70,36 @@ export async function GET(req: NextRequest) {
     case "following": {
       const data = await prisma.follow.findMany({ where: { followerId: userId, ...(cursor ? { followingId: { gt: cursor } } : {}) }, take: take + 1, orderBy: { followingId: "asc" }, select: { followingId: true, createdAt: true } });
       rows = data; keys = data.map((row) => row.followingId); break;
+    }
+    case "readingLists": {
+      const data = await prisma.readingList.findMany({ where: { userId, ...byId }, ...options, select: { id: true, name: true, description: true, isPublic: true, createdAt: true, updatedAt: true } });
+      rows = data; keys = data.map((row) => row.id); break;
+    }
+    case "readingListItems": {
+      const [listId, articleId] = cursor?.split(":") ?? [];
+      if (cursor && (!listId || !articleId)) return NextResponse.json({ error: "Invalid list item cursor" }, { status: 400 });
+      const data = await prisma.readingListItem.findMany({ where: { list: { userId }, ...(listId && articleId ? { OR: [{ listId: { gt: listId } }, { listId, articleId: { gt: articleId } }] } : {}) }, take: take + 1, orderBy: [{ listId: "asc" }, { articleId: "asc" }], select: { listId: true, articleId: true, createdAt: true } });
+      rows = data; keys = data.map((row) => `${row.listId}:${row.articleId}`); break;
+    }
+    case "savedLists": {
+      const data = await prisma.savedList.findMany({ where: { userId, ...(cursor ? { listId: { gt: cursor } } : {}) }, take: take + 1, orderBy: { listId: "asc" }, select: { listId: true, createdAt: true } });
+      rows = data; keys = data.map((row) => row.listId); break;
+    }
+    case "highlights": {
+      const data = await prisma.highlight.findMany({ where: { userId, ...byId }, ...options, select: { id: true, articleId: true, quote: true, note: true, createdAt: true } });
+      rows = data; keys = data.map((row) => row.id); break;
+    }
+    case "topicFollows": {
+      const data = await prisma.topicFollow.findMany({ where: { userId, ...(cursor ? { tagId: { gt: cursor } } : {}) }, take: take + 1, orderBy: { tagId: "asc" }, select: { tagId: true, createdAt: true } });
+      rows = data; keys = data.map((row) => row.tagId); break;
+    }
+    case "aiConversations": {
+      const data = await prisma.aiConversation.findMany({ where: { userId, ...byId }, ...options, select: { id: true, title: true, createdAt: true, updatedAt: true } });
+      rows = data; keys = data.map((row) => row.id); break;
+    }
+    case "aiMessages": {
+      const data = await prisma.aiMessage.findMany({ where: { conversation: { userId }, ...byId }, ...options, select: { id: true, conversationId: true, role: true, content: true, attachments: true, createdAt: true } });
+      rows = data; keys = data.map((row) => row.id); break;
     }
     default: {
       const data = await prisma.follow.findMany({ where: { followingId: userId, ...(cursor ? { followerId: { gt: cursor } } : {}) }, take: take + 1, orderBy: { followerId: "asc" }, select: { followerId: true, createdAt: true } });

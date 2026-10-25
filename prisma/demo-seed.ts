@@ -1,10 +1,13 @@
-// Demo data for local development: 50 readers/writers (user1@gmail.com … user50@gmail.com),
+// Demo data for local development: 50 readers/writers (user1@example.test … user50@example.test),
 // 10 stories, tags, claps, comments, bookmarks, follows, recent reads, likes and ratings. Safe to re-run.
 // Users sign in with the email magic link; in development it lands in the local SMTP catcher.
 import { PrismaClient, Prisma } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { documentText, type StoryNode } from "../lib/story-document";
 import { slugify } from "../lib/slug";
+import { mkdir } from "node:fs/promises";
+import path from "node:path";
+import sharp from "sharp";
 import { STORY_THEMES } from "../lib/story-theme";
 
 if (process.env.NODE_ENV === "production") {
@@ -337,20 +340,27 @@ function shuffled<T>(items: T[], random: () => number): T[] {
 async function main() {
   const random = rng(42);
 
+  const avatarDir = path.join(process.cwd(), "public", "demo", "avatars");
+  await mkdir(avatarDir, { recursive: true });
   const users = [];
   for (let i = 1; i <= USER_COUNT; i++) {
     const name = `${FIRST_NAMES[i - 1]} ${LAST_NAMES[(i - 1) % LAST_NAMES.length]}`;
+    const hue = (i * 47) % 360;
+    const portrait = `<svg width="160" height="160" xmlns="http://www.w3.org/2000/svg"><rect width="160" height="160" fill="hsl(${hue},35%,82%)"/><ellipse cx="80" cy="158" rx="58" ry="51" fill="hsl(${hue},40%,30%)"/><rect x="65" y="92" width="30" height="33" rx="12" fill="#c99470"/><ellipse cx="80" cy="66" rx="36" ry="43" fill="#dba783"/><path d="M44 62 Q34 12 80 16 Q124 12 116 62 Q105 37 80 40 Q57 37 44 62" fill="#302a29"/><circle cx="66" cy="67" r="3" fill="#302a29"/><circle cx="94" cy="67" r="3" fill="#302a29"/><path d="M69 88 Q80 97 91 88" stroke="#88543f" stroke-width="3" fill="none"/></svg>`;
+    await sharp(Buffer.from(portrait)).png().toFile(path.join(avatarDir, `user${i}.png`));
     const data = {
       name,
-      username: `user${i}`,
+      username: `demo-user${i}`,
       bio: BIOS[(i - 1) % BIOS.length],
       emailVerified: new Date("2026-01-01"),
+      avatarUrl: `/demo/avatars/user${i}.png`,
+      activityEmails: false,
     };
     users.push(
       await prisma.user.upsert({
-        where: { email: `user${i}@gmail.com` },
+        where: { email: `user${i}@example.test` },
         update: data,
-        create: { email: `user${i}@gmail.com`, ...data },
+        create: { email: `user${i}@example.test`, ...data },
       }),
     );
   }
@@ -430,9 +440,23 @@ async function main() {
   // Recent reads, likes and ratings so the trending and most-viewed panels have data.
   const articles = await prisma.article.findMany({
     where: { authorId: { in: userIds }, slug: { in: demoSlugs } },
-    select: { id: true, authorId: true },
+    select: { id: true, authorId: true, contentText: true, publishedAt: true },
   });
   const now = Date.now();
+  // Older reads spread over the last 90 days (weekday-weighted) so writer stats charts have history.
+  await prisma.articleView.deleteMany({ where: { articleId: { in: articles.map((a) => a.id) }, visitorId: { startsWith: "demo-history-" } } });
+  for (const article of articles) {
+    const published = article.publishedAt?.getTime() ?? now;
+    const history = [];
+    for (let day = 2; day < 90; day++) {
+      const at = now - day * 86_400_000;
+      if (at < published) break;
+      const weekday = new Date(at).getUTCDay();
+      const reads = Math.floor(random() * (weekday === 0 || weekday === 6 ? 3 : 6));
+      for (let r = 0; r < reads; r++) history.push({ articleId: article.id, visitorId: `demo-history-${day}-${r}`, createdAt: new Date(at) });
+    }
+    await prisma.articleView.createMany({ data: history });
+  }
   for (const article of articles) {
     const popularity = 0.2 + random() * 0.8;
     const readers = shuffled(userIds.filter((id) => id !== article.authorId), random);
@@ -466,11 +490,46 @@ async function main() {
       ...shuffled(userIds, random).slice(0, 3),
     ]);
     targets.delete(user.id);
-    return [...targets].map((followingId) => ({ followerId: user.id, followingId }));
+    return [...targets].map((followingId) => ({
+      followerId: user.id,
+      followingId,
+      createdAt: new Date(now - Math.floor(random() * 60) * 86_400_000),
+    }));
   });
+  // Recreate demo follows so their dates spread over 60 days and the follower charts have history.
+  await prisma.follow.deleteMany({ where: { followerId: { in: userIds }, followingId: { in: userIds } } });
   await prisma.follow.createMany({ data: follows, skipDuplicates: true });
 
-  console.log(`Demo seeded: ${users.length} users, ${STORIES.length} stories, ${follows.length} follows`);
+  const tags = await prisma.tag.findMany({ orderBy: { slug: "asc" } });
+  for (const [index, user] of users.entries()) {
+    const topic = tags[index % tags.length];
+    const title = `${user.name}'s field notes on ${topic.name}`;
+    const content: StoryNode = { type: "doc", content: [h("What I learned"), p(`Practical observations about ${topic.name}, written for curious people who enjoy sharing their work.`), p("Start with a small experiment, record what changed, and share the result with someone who can offer a different perspective.")] };
+    const contentText = documentText(content);
+    const published = await prisma.article.upsert({
+      where: { authorId_slug: { authorId: user.id, slug: "demo-field-notes" } },
+      create: { authorId: user.id, slug: "demo-field-notes", title, content: content as Prisma.InputJsonValue, contentText, readTime: 2, published: true, publishedAt: new Date(now - (index + 1) * 86400000), tags: { create: { tagId: topic.id } } },
+      update: { title, content: content as Prisma.InputJsonValue, contentText },
+    });
+    for (const status of ["draft", "scheduled", "unlisted", "submission"] as const) {
+      const data = { title: `${topic.name}: ${status === "draft" ? "a work in progress" : status === "scheduled" ? "next week's ideas" : status === "unlisted" ? "a private preview" : "an editorial submission"}`, content: content as Prisma.InputJsonValue, contentText, readTime: 2, published: status === "unlisted", publishedAt: status === "unlisted" ? new Date(now - 86400000) : null, unlisted: status === "unlisted", scheduledAt: status === "scheduled" ? new Date(now + 7 * 86400000) : null, submittedAt: status === "submission" ? new Date() : null };
+      await prisma.article.upsert({ where: { authorId_slug: { authorId: user.id, slug: `demo-${status}` } }, create: { ...data, authorId: user.id, slug: `demo-${status}` }, update: data });
+    }
+    const list = await prisma.readingList.upsert({ where: { id: `demo-list-${index + 1}` }, create: { id: `demo-list-${index + 1}`, userId: user.id, name: "Ideas worth revisiting", description: "A few reads to inspire the next story.", isPublic: true }, update: {} });
+    const selected = articles.filter((article) => article.authorId !== user.id).slice(index % 4, index % 4 + 3);
+    await prisma.readingListItem.createMany({ data: selected.map((article) => ({ listId: list.id, articleId: article.id })), skipDuplicates: true });
+    await prisma.highlight.deleteMany({ where: { userId: user.id, note: "Demo reading note" } });
+    if (selected[0]) await prisma.highlight.create({ data: { userId: user.id, articleId: selected[0].id, quote: selected[0].contentText.slice(0, 180), note: "Demo reading note" } });
+    await prisma.topicFollow.createMany({ data: [topic, tags[(index + 1) % tags.length]].map((tag) => ({ userId: user.id, tagId: tag.id })), skipDuplicates: true });
+    await prisma.articleView.deleteMany({ where: { articleId: published.id, visitorId: { startsWith: "demo-" } } });
+    await prisma.articleView.createMany({ data: Array.from({ length: 35 }, (_, day) => ({ articleId: published.id, visitorId: day % 3 === 0 ? `demo-visitor-${day % 5}` : `demo-visitor-${day}`, createdAt: new Date(now - day * 86400000) })) });
+  }
+  for (const [index, user] of users.entries()) {
+    await prisma.savedList.upsert({ where: { userId_listId: { userId: user.id, listId: `demo-list-${((index + 1) % 50) + 1}` } }, create: { userId: user.id, listId: `demo-list-${((index + 1) % 50) + 1}` }, update: {} });
+    await prisma.aiConversation.upsert({ where: { id: `demo-chat-${index + 1}` }, create: { id: `demo-chat-${index + 1}`, userId: user.id, title: "Demo: shaping a story idea", messages: { create: [{ role: "user", content: "How can I turn my field notes into a useful story?" }, { role: "assistant", content: "Start with one question your reader faces. Describe what you tried, share a concrete result, then finish with a small step they can take. This is a seeded example conversation." }] } }, update: {} });
+  }
+
+  console.log(`Demo seeded: ${users.length} users, ${STORIES.length + USER_COUNT * 5} stories, ${USER_COUNT} lists, ${follows.length} follows`);
 }
 
 main()

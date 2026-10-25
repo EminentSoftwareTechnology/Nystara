@@ -11,6 +11,8 @@ the pieces fit together, see [ARCHITECTURE.md](ARCHITECTURE.md).
 - [Comments, reactions and ratings](#comments-reactions-and-ratings)
 - [Media and video](#media-and-video)
 - [AI editor](#ai-editor)
+- [Library](#library)
+- [Following writers and topics](#following-writers-and-topics)
 - [Reader sign-in](#reader-sign-in)
 - [Account](#account)
 - [Security settings (MFA)](#security-settings-mfa)
@@ -155,6 +157,24 @@ and slug cannot be changed here.
 or sets it to now; unpublishing clears it.
 
 `200 { "id", "published", "publishedAt" }`. Errors: `401`, `403`, `404`, `400`.
+
+### `POST /api/articles/{id}/status`
+
+**Session**, author only. Moves a story between the Stories tabs.
+
+```json
+{ "action": "schedule", "scheduledAt": "2026-11-01T09:00:00.000Z" }
+```
+
+- `action`: `draft`, `publish`, `unlist` (published but hidden from feeds and
+  discovery; reachable by link), `submit` (unpublished, queued for editorial
+  review) or `schedule`.
+- `scheduledAt`: required for `schedule`; must be in the future. Due stories are
+  published when the Stories, Following or Stats pages load.
+- Every action except `draft` needs a title and story text.
+
+`200 { "ok": true }`. Errors: `401`, `404`, `400` (bad action, past date, empty
+story).
 
 ---
 
@@ -303,32 +323,92 @@ content field preserves the existing rich document.
 
 ## AI editor
 
+### `GET /api/ai/editor`
+
+**Session.** Without `id`: `200 { "conversations": [{ "id", "title", "updatedAt" }] }`
+(latest 50). With `?id=`: `200 { "messages": [{ "id", "role", "content",
+"attachments": [{ "name", "type" }], "createdAt" }] }` (up to 100). Attachment
+contents are never returned. Errors: `401`, `404`.
+
+### `DELETE /api/ai/editor?id={conversationId}`
+
+**Session**, owner only. Deletes the conversation and its messages.
+`200 { "ok": true }`. Errors: `401`, `400`.
+
 ### `POST /api/ai/editor`
 
 **Session** with premium access: a subscription that is `ACTIVE` or `TRIALING`
-and whose `currentPeriodEnd` is in the future.
+and whose `currentPeriodEnd` is in the future. The premium check is skipped
+only when `NODE_ENV=development`.
 
 ```json
-{ "action": "polish", "text": "Passage to edit" }
+{ "conversationId": "optional", "text": "Message", "attachments": [{ "name": "notes.md", "type": "text/markdown", "data": "<base64>" }] }
 ```
 
-- `action`: `polish`, `shorten`, `expand`, `outline`, `titles` or `feedback`.
 - `text`: 1–12,000 characters after trimming.
-- Limit: 30 requests per user per day. Attempts count even when the provider
-  fails.
+- `attachments`: up to 3 files, 500 KB in total. Types: `text/plain`,
+  `text/markdown`, `text/csv`, `application/json`, `application/pdf`,
+  `image/png`, `image/jpeg`.
+- Without `conversationId` a new conversation is created. A conversation holds
+  at most 100 messages; the last 12 are sent as context.
+- Limits: 30 requests per user per day, and one request in flight per user
+  (15 seconds). Attempts count even when the provider fails.
 
-`200 { "text": "Suggestion as plain text" }`.
+`200 { "conversation": { "id", "title", "updatedAt" }, "messages": [userMessage, assistantMessage] }`.
 
 | Status | Meaning |
 | --- | --- |
 | `401` | Not signed in |
 | `403` | No active premium membership |
-| `503` | `OPENAI_API_KEY` or `OPENAI_MODEL` not set |
-| `400` | Bad action or length |
-| `429` | Daily limit reached (`Retry-After` set) |
-| `502` | Provider error, timeout (45 s) or empty output |
+| `404` | Conversation not found |
+| `503` | `OPENAI_API_KEY` not set |
+| `400` | Bad length, file type or size; conversation full |
+| `409` | The conversation changed in another tab |
+| `429` | Daily or in-flight limit reached (`Retry-After` set) |
+| `502` | Provider error (including a rejected API key), timeout (60 s) or empty output |
 
-The request uses `store: false` and at most 2,000 output tokens.
+The request uses `store: false` and at most 3,000 output tokens.
+
+---
+
+## Library
+
+### `GET /api/me/library?articleId={id}`
+
+**Session.** `200 { "lists": [{ "id", "name", "items": [{ "articleId" }] }], "bookmarked": boolean }`.
+`items` contains the article only when it is in that list.
+
+### `POST /api/me/library`
+
+**Session.** Limit: 120 changes per user per 10 minutes. One action per request:
+
+| `action` | Fields | Effect |
+| --- | --- | --- |
+| `createList` | `name` (1–100), `description`? (≤ 500), `isPublic`? | Creates a list (max 100 per user). Returns `{ "list" }`. |
+| `deleteList` | `listId` | Deletes your list. |
+| `bookmark` | `articleId`, `saved` | Saves or removes a story from your reading list. |
+| `listItem` | `articleId`, `listId`, `saved` | Adds or removes a story from your list. Unlisted stories can only go in private lists. |
+| `saveList` | `listId`, `saved` | Saves or removes another reader's public list. |
+| `highlight` | `articleId`, `quote` (1–3,000), `note`? (≤ 2,000) | Saves a highlight. The quote must appear in text you can read (the excerpt for locked member stories). |
+| `deleteHighlight` | `highlightId` | Deletes your highlight. |
+| `clearHistory` | — | Hides reading history before now. |
+
+`200 { "ok": true }`. Errors: `401`, `400`, `404` (story or list not found), `429`.
+
+---
+
+## Following writers and topics
+
+### `PUT` / `DELETE /api/users/{id}/follow`
+
+**Session.** Follows or unfollows a writer. Limit: 120 changes per user per 10
+minutes. `200 { "following": boolean }`. Errors: `401`, `400` (yourself), `404`,
+`429`.
+
+### `PUT` / `DELETE /api/topics/{id}/follow`
+
+**Session.** Follows or unfollows a topic (tag). Same limit.
+`200 { "following": boolean }`. Errors: `401`, `404`, `429`.
 
 ---
 
@@ -455,7 +535,9 @@ Without `section`:
 ```
 
 With `section` = `articles`, `comments`, `claps`, `bookmarks`, `following`,
-`followers`, `views` or `feedback`, and optional `cursor` (≤ 128 characters):
+`followers`, `views`, `feedback`, `readingLists`, `readingListItems`,
+`savedLists`, `highlights`, `topicFollows`, `aiConversations` or `aiMessages`,
+and optional `cursor` (≤ 128 characters):
 
 ```json
 { "section": "articles", "records": [ … up to 20 … ], "next": "/api/me/export?section=articles&cursor=…" }
@@ -583,7 +665,7 @@ Runs the same erasure as `DELETE /api/me`. You cannot delete yourself (`400`).
 | --- | --- |
 | `page` | 1–1000 |
 | `q` | Title search |
-| `status` | `published` or `draft` |
+| `status` | `published`, `draft` or `submitted` |
 
 `200 { "articles": [{ "id", "slug", "title", "published", "memberOnly", "readTime", "createdAt", "publishedAt", "author", "_count": { "claps", "comments", "views" } }], "total", "page", "pages" }`.
 
