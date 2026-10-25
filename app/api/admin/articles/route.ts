@@ -9,7 +9,8 @@ import { MAX_CONTENT_CHARS, parsePage, readJson } from "@/lib/request";
 
 export async function GET(req: NextRequest) {
   const session = await getVerifiedAdminSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = req.nextUrl;
   const page = parsePage(searchParams.get("page"));
@@ -22,7 +23,13 @@ export async function GET(req: NextRequest) {
     ...(search
       ? { OR: [{ title: { contains: search, mode: "insensitive" as const } }] }
       : {}),
-    ...(status === "published" ? { published: true } : status === "draft" ? { published: false } : {}),
+    ...(status === "published"
+      ? { published: true }
+      : status === "draft"
+        ? { published: false, submittedAt: null, scheduledAt: null }
+        : status === "submitted"
+          ? { published: false, submittedAt: { not: null } }
+          : {}),
   };
 
   const [articles, total] = await Promise.all([
@@ -36,6 +43,9 @@ export async function GET(req: NextRequest) {
         slug: true,
         title: true,
         published: true,
+        submittedAt: true,
+        scheduledAt: true,
+        unlisted: true,
         memberOnly: true,
         readTime: true,
         createdAt: true,
@@ -47,7 +57,12 @@ export async function GET(req: NextRequest) {
     prisma.article.count({ where }),
   ]);
 
-  return NextResponse.json({ articles, total, page, pages: Math.ceil(total / take) });
+  return NextResponse.json({
+    articles,
+    total,
+    page,
+    pages: Math.ceil(total / take),
+  });
 }
 
 const createSchema = z.object({
@@ -62,13 +77,26 @@ const createSchema = z.object({
 
 export async function POST(req: NextRequest) {
   const session = await getVerifiedAdminSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await readJson(req);
   const parsed = createSchema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  if (!parsed.success)
+    return NextResponse.json(
+      { error: parsed.error.flatten() },
+      { status: 400 },
+    );
 
-  const { title, subtitle, coverImage, contentText, memberOnly, published, tagSlugs } = parsed.data;
+  const {
+    title,
+    subtitle,
+    coverImage,
+    contentText,
+    memberOnly,
+    published,
+    tagSlugs,
+  } = parsed.data;
   const wordCount = contentText.trim().split(/\s+/).filter(Boolean).length;
   const readTime = Math.max(1, Math.ceil(wordCount / 200));
   const slug = generateUniqueSlug(title);

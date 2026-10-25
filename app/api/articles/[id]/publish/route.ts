@@ -38,6 +38,9 @@ export async function POST(
     where: { id },
     data: {
       published,
+      scheduledAt: null,
+      submittedAt: null,
+      unlisted: false,
       publishedAt: published ? article.publishedAt ?? new Date() : null,
     },
     select: { id: true, published: true, publishedAt: true },

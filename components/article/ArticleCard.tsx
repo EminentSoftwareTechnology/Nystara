@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { Avatar } from "@/components/layout/Avatar";
 
 type ArticleCardProps = {
   article: {
@@ -11,7 +12,7 @@ type ArticleCardProps = {
     readTime: number;
     memberOnly: boolean;
     publishedAt: Date | null;
-    author: { username: string | null; name: string | null; avatarUrl: string | null };
+    author: { username: string | null; name: string | null; avatarUrl: string | null; image?: string | null };
     tags: { tag: { name: string; slug: string } }[];
     _count: { claps: number; comments: number };
   };
@@ -25,17 +26,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
     <article className="flex gap-5 py-7 sm:gap-8">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-2">
-          {article.author.avatarUrl ? (
-            <Image
-              src={article.author.avatarUrl}
-              alt={article.author.name ?? article.author.username ?? "Author"}
-              width={24}
-              height={24}
-              className="rounded-full"
-            />
-          ) : (
-            <div className="w-6 h-6 rounded-full bg-surface-2 flex-shrink-0" />
-          )}
+          <Avatar src={article.author.avatarUrl ?? article.author.image ?? null} name={article.author.name ?? article.author.username ?? "Writer"} size={24} />
           <Link
             href={authorHandle ? `/${authorHandle}` : "#"}
             className="text-sm font-medium hover:underline"

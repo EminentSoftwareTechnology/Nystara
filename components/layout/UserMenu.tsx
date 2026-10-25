@@ -42,6 +42,8 @@ export default function UserMenu({ name, email, avatarUrl, username, sidebar = f
         <span className="block h-9 w-9 shrink-0 overflow-hidden rounded-full">
         {avatarUrl ? (
           <Image
+            unoptimized
+            referrerPolicy="no-referrer"
             src={avatarUrl}
             alt={name ?? "User"}
             width={36}
@@ -63,7 +65,7 @@ export default function UserMenu({ name, email, avatarUrl, username, sidebar = f
           <div className="flex items-center gap-3 px-4 py-3">
             <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
               {avatarUrl ? (
-                <Image src={avatarUrl} alt={name ?? "User"} width={40} height={40} className="rounded-full object-cover w-full h-full" />
+                <Image unoptimized referrerPolicy="no-referrer" src={avatarUrl} alt={name ?? "User"} width={40} height={40} className="rounded-full object-cover w-full h-full" />
               ) : (
                 <div className="w-full h-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center text-sm font-semibold text-gray-700 dark:text-gray-200">
                   {initials}

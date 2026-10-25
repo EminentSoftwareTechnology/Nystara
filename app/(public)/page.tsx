@@ -1,3 +1,4 @@
+import { publishDueStories } from "@/lib/story-status";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
@@ -20,7 +21,7 @@ const articleSelect = {
   readTime: true,
   memberOnly: true,
   publishedAt: true,
-  author: { select: { username: true, name: true, avatarUrl: true } },
+  author: { select: { username: true, name: true, avatarUrl: true, image: true } },
   tags: { select: { tag: { select: { name: true, slug: true } } } },
   _count: { select: { claps: true, comments: true } },
 } as const;
@@ -40,16 +41,17 @@ function shortDate(date: Date | null) {
 }
 
 export default async function HomePage() {
+  await publishDueStories();
   const [session, articles, featuredArticles, tags] = await Promise.all([
     auth(),
     prisma.article.findMany({
-      where: { published: true },
+      where: { published: true, unlisted: false },
       orderBy: { publishedAt: "desc" },
       take: 20,
       select: articleSelect,
     }),
     prisma.article.findMany({
-      where: { published: true },
+      where: { published: true, unlisted: false },
       orderBy: { claps: { _count: "desc" } },
       take: 20,
       select: articleSelect,

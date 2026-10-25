@@ -11,7 +11,8 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_req: NextRequest, { params }: Params) {
   const session = await getVerifiedAdminSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
   const article = await prisma.article.findUnique({
@@ -34,7 +35,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
     },
   });
 
-  if (!article) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!article)
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json(article);
 }
 
@@ -50,60 +52,98 @@ const updateSchema = z.object({
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   const session = await getVerifiedAdminSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
   const body = await readJson(req);
   const parsed = updateSchema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  if (!parsed.success)
+    return NextResponse.json(
+      { error: parsed.error.flatten() },
+      { status: 400 },
+    );
 
   const { tagSlugs, contentText, published, ...rest } = parsed.data;
 
-  const existing = await prisma.article.findUnique({ where: { id }, select: { published: true, authorId: true } });
-  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const existing = await prisma.article.findUnique({
+    where: { id },
+    select: { published: true, authorId: true },
+  });
+  if (!existing)
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const wordCount = contentText ? contentText.trim().split(/\s+/).filter(Boolean).length : undefined;
-  const readTime = wordCount ? Math.max(1, Math.ceil(wordCount / 200)) : undefined;
+  const wordCount = contentText
+    ? contentText.trim().split(/\s+/).filter(Boolean).length
+    : undefined;
+  const readTime = wordCount
+    ? Math.max(1, Math.ceil(wordCount / 200))
+    : undefined;
 
   const article = await prisma.article.update({
     where: { id },
     data: {
       ...rest,
-      ...(contentText ? { contentText, content: { text: contentText } as Prisma.InputJsonValue, readTime } : {}),
-      ...(published !== undefined ? {
-        published,
-        publishedAt: published && !existing.published ? new Date() : undefined,
-      } : {}),
-      ...(tagSlugs !== undefined ? {
-        tags: {
-          deleteMany: {},
-          create: [...new Set(tagSlugs)].map((tagSlug) => ({
-            tag: {
-              connectOrCreate: {
-                where: { slug: tagSlug },
-                create: { slug: tagSlug, name: tagSlug },
-              },
+      ...(contentText
+        ? {
+            contentText,
+            content: { text: contentText } as Prisma.InputJsonValue,
+            readTime,
+          }
+        : {}),
+      ...(published !== undefined
+        ? {
+            published,
+            publishedAt: published
+              ? !existing.published
+                ? new Date()
+                : undefined
+              : null,
+            submittedAt: null,
+            scheduledAt: null,
+            unlisted: false,
+          }
+        : {}),
+      ...(tagSlugs !== undefined
+        ? {
+            tags: {
+              deleteMany: {},
+              create: [...new Set(tagSlugs)].map((tagSlug) => ({
+                tag: {
+                  connectOrCreate: {
+                    where: { slug: tagSlug },
+                    create: { slug: tagSlug, name: tagSlug },
+                  },
+                },
+              })),
             },
-          })),
-        },
-      } : {}),
+          }
+        : {}),
     },
     select: { id: true, slug: true, title: true, published: true },
   });
 
   if (published !== undefined && published !== existing.published) {
-    await notifyUser(existing.authorId, published ? "story-published" : "story-unpublished");
+    await notifyUser(
+      existing.authorId,
+      published ? "story-published" : "story-unpublished",
+    );
   }
   return NextResponse.json(article);
 }
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const session = await getVerifiedAdminSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  const existing = await prisma.article.findUnique({ where: { id }, select: { authorId: true } });
-  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const existing = await prisma.article.findUnique({
+    where: { id },
+    select: { authorId: true },
+  });
+  if (!existing)
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   await prisma.article.delete({ where: { id } });
   await notifyUser(existing.authorId, "story-deleted");

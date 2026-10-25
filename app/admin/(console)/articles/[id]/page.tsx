@@ -1,3 +1,4 @@
+import SubmissionReview from "./SubmissionReview";
 import { getVerifiedAdminSession } from "@/lib/admin-auth";
 import { redirect } from "next/navigation";
 import { notFound } from "next/navigation";
@@ -20,6 +21,9 @@ export default async function AdminArticleViewPage({ params }: Props) {
       contentText: true,
       readTime: true,
       published: true,
+      submittedAt: true,
+      scheduledAt: true,
+      unlisted: true,
       memberOnly: true,
       publishedAt: true,
       createdAt: true,
@@ -34,7 +38,10 @@ export default async function AdminArticleViewPage({ params }: Props) {
   return (
     <div className="p-8 max-w-3xl">
       <div className="flex items-center justify-between mb-6">
-        <Link href="/admin/articles" className="text-sm text-muted hover:text-foreground">
+        <Link
+          href="/admin/articles"
+          className="text-sm text-muted hover:text-foreground"
+        >
           ← Articles
         </Link>
         <div className="flex gap-3">
@@ -49,12 +56,22 @@ export default async function AdminArticleViewPage({ params }: Props) {
       </div>
 
       <div className="mb-4 flex gap-2 flex-wrap">
-        <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-          article.published
-            ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
-            : "bg-surface text-muted"
-        }`}>
-          {article.published ? "Live" : "Draft"}
+        <span
+          className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+            article.published
+              ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
+              : "bg-surface text-muted"
+          }`}
+        >
+          {article.published
+            ? article.unlisted
+              ? "Unlisted"
+              : "Live"
+            : article.submittedAt
+              ? "Submitted"
+              : article.scheduledAt
+                ? "Scheduled"
+                : "Draft"}
         </span>
         {article.memberOnly && (
           <span className="text-xs px-2.5 py-1 rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 font-medium">
@@ -63,7 +80,16 @@ export default async function AdminArticleViewPage({ params }: Props) {
         )}
       </div>
 
-      <h1 className="text-3xl font-bold text-foreground mb-2">{article.title}</h1>
+      {article.submittedAt && !article.published && (
+        <SubmissionReview
+          id={article.id}
+          submittedAt={article.submittedAt.toISOString()}
+        />
+      )}
+
+      <h1 className="text-3xl font-bold text-foreground mb-2">
+        {article.title}
+      </h1>
       {article.subtitle && (
         <p className="text-lg text-muted mb-4">{article.subtitle}</p>
       )}
@@ -83,7 +109,10 @@ export default async function AdminArticleViewPage({ params }: Props) {
       {article.tags.length > 0 && (
         <div className="flex gap-2 flex-wrap mb-6">
           {article.tags.map(({ tag }) => (
-            <span key={tag.slug} className="text-xs px-2.5 py-1 rounded-full bg-surface text-muted">
+            <span
+              key={tag.slug}
+              className="text-xs px-2.5 py-1 rounded-full bg-surface text-muted"
+            >
               {tag.name}
             </span>
           ))}

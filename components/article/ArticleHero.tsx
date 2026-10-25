@@ -7,7 +7,7 @@ type Props = {
   readTime: number;
   publishedAt: Date | null;
   memberOnly: boolean;
-  author: { username: string | null; name: string | null; avatarUrl: string | null };
+  author: { username: string | null; name: string | null; avatarUrl: string | null; image?: string | null };
   tags: { name: string; slug: string }[];
 };
 
@@ -74,10 +74,10 @@ export default function ArticleHero({
             </p>
           )}
           <div className="mt-8 flex items-center gap-3 text-sm">
-            {author.avatarUrl ? (
+            {(author.avatarUrl ?? author.image) ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={author.avatarUrl}
+                src={author.avatarUrl ?? author.image ?? ""}
                 alt=""
                 referrerPolicy="no-referrer"
                 className="h-11 w-11 rounded-full object-cover ring-2 ring-white/40"

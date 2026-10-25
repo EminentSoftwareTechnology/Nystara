@@ -20,7 +20,7 @@ export const commentSelect = {
   guestName: true,
   parentId: true,
   authorId: true,
-  author: { select: { name: true, username: true, avatarUrl: true } },
+  author: { select: { name: true, username: true, avatarUrl: true, image: true } },
 } as const;
 
 export type CommentView = {
@@ -42,7 +42,7 @@ type CommentRow = {
   guestName: string | null;
   parentId: string | null;
   authorId: string | null;
-  author: { name: string | null; username: string | null; avatarUrl: string | null } | null;
+  author: { name: string | null; username: string | null; avatarUrl: string | null; image?: string | null } | null;
 };
 
 export function toCommentView(
@@ -55,7 +55,7 @@ export function toCommentView(
     createdAt: row.createdAt.toISOString(),
     name: row.author?.name ?? row.author?.username ?? row.guestName ?? "Reader",
     username: row.author?.username ?? null,
-    avatarUrl: row.author?.avatarUrl ?? null,
+    avatarUrl: row.author?.avatarUrl ?? row.author?.image ?? null,
     guest: !row.authorId,
     parentId: row.parentId,
     canDelete:

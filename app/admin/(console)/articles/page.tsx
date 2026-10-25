@@ -8,7 +8,11 @@ export const dynamic = "force-dynamic";
 
 type SearchParams = { page?: string; q?: string; status?: string };
 
-export default async function AdminArticlesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
+export default async function AdminArticlesPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
   if (!(await getVerifiedAdminSession())) redirect("/admin/login");
   const { page: pageStr, q: query, status } = await searchParams;
   const page = parsePage(pageStr);
@@ -18,10 +22,16 @@ export default async function AdminArticlesPage({ searchParams }: { searchParams
 
   const where = {
     ...(q ? { title: { contains: q, mode: "insensitive" as const } } : {}),
-    ...(status === "published" ? { published: true } : status === "draft" ? { published: false } : {}),
+    ...(status === "published"
+      ? { published: true }
+      : status === "draft"
+        ? { published: false, submittedAt: null, scheduledAt: null }
+        : status === "submitted"
+          ? { published: false, submittedAt: { not: null } }
+          : {}),
   };
 
-  const [articles, total] = await Promise.all([
+  const [articles, total, submissions] = await Promise.all([
     prisma.article.findMany({
       where,
       skip,
@@ -31,6 +41,9 @@ export default async function AdminArticlesPage({ searchParams }: { searchParams
         id: true,
         title: true,
         published: true,
+        submittedAt: true,
+        scheduledAt: true,
+        unlisted: true,
         memberOnly: true,
         readTime: true,
         createdAt: true,
@@ -39,6 +52,9 @@ export default async function AdminArticlesPage({ searchParams }: { searchParams
       },
     }),
     prisma.article.count({ where }),
+    prisma.article.count({
+      where: { published: false, submittedAt: { not: null } },
+    }),
   ]);
 
   const pages = Math.ceil(total / take);
@@ -47,8 +63,12 @@ export default async function AdminArticlesPage({ searchParams }: { searchParams
     <div className="p-8">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Articles</h1>
-          <p className="text-sm text-muted mt-0.5">{total.toLocaleString()} total</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            Articles
+          </h1>
+          <p className="text-sm text-muted mt-0.5">
+            {total.toLocaleString()} total
+          </p>
         </div>
         <Link
           href="/admin/articles/new"
@@ -58,32 +78,58 @@ export default async function AdminArticlesPage({ searchParams }: { searchParams
         </Link>
       </div>
 
+      <Link
+        href="/admin/articles?status=submitted"
+        className="mb-5 inline-flex rounded-xl border border-border bg-background px-4 py-3 text-sm"
+      >
+        Awaiting editorial review{" "}
+        <strong className="ml-3">{submissions}</strong>
+      </Link>
+
       {/* Filters */}
       <form className="flex gap-2 mb-6 flex-wrap">
         <input
           name="q"
+          aria-label="Search article titles"
           defaultValue={q}
           placeholder="Search by title…"
           className="px-3 py-2 rounded-lg border border-border-strong bg-background text-sm focus:outline-none flex-1 min-w-48"
         />
-        <select name="status" defaultValue={status ?? ""} className="px-3 py-2 rounded-lg border border-border-strong bg-background text-sm focus:outline-none">
+        <select
+          aria-label="Article status"
+          name="status"
+          defaultValue={status ?? ""}
+          className="px-3 py-2 rounded-lg border border-border-strong bg-background text-sm focus:outline-none"
+        >
           <option value="">All statuses</option>
           <option value="published">Published</option>
           <option value="draft">Draft</option>
+          <option value="submitted">Submitted for review</option>
         </select>
-        <button type="submit" className="px-4 py-2 rounded-full bg-accent text-accent-foreground text-sm font-medium">
+        <button
+          type="submit"
+          className="px-4 py-2 rounded-full bg-accent text-accent-foreground text-sm font-medium"
+        >
           Filter
         </button>
       </form>
 
-      <div className="bg-background rounded-2xl border border-border overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-background rounded-2xl border border-border overflow-x-auto">
+        <table className="w-full min-w-[640px] text-sm">
           <thead className="bg-page border-b border-border">
             <tr>
-              <th className="px-4 py-3 text-left font-medium text-muted">Title</th>
-              <th className="px-4 py-3 text-left font-medium text-muted">Author</th>
-              <th className="px-4 py-3 text-left font-medium text-muted">Status</th>
-              <th className="px-4 py-3 text-left font-medium text-muted">Created</th>
+              <th className="px-4 py-3 text-left font-medium text-muted">
+                Title
+              </th>
+              <th className="px-4 py-3 text-left font-medium text-muted">
+                Author
+              </th>
+              <th className="px-4 py-3 text-left font-medium text-muted">
+                Status
+              </th>
+              <th className="px-4 py-3 text-left font-medium text-muted">
+                Created
+              </th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
@@ -91,17 +137,34 @@ export default async function AdminArticlesPage({ searchParams }: { searchParams
             {articles.map((a) => (
               <tr key={a.id} className="hover:bg-surface">
                 <td className="px-4 py-3">
-                  <p className="font-medium text-foreground line-clamp-1">{a.title}</p>
-                  <p className="text-xs text-muted">{a.readTime} min · {a._count.claps} claps · {a._count.comments} comments</p>
+                  <p className="font-medium text-foreground line-clamp-1">
+                    {a.title}
+                  </p>
+                  <p className="text-xs text-muted">
+                    {a.readTime} min · {a._count.claps} claps ·{" "}
+                    {a._count.comments} comments
+                  </p>
                 </td>
-                <td className="px-4 py-3 text-muted">{a.author.name ?? a.author.username}</td>
+                <td className="px-4 py-3 text-muted">
+                  {a.author.name ?? a.author.username}
+                </td>
                 <td className="px-4 py-3">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                    a.published
-                      ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
-                      : "bg-surface text-muted"
-                  }`}>
-                    {a.published ? "Live" : "Draft"}
+                  <span
+                    className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                      a.published
+                        ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
+                        : "bg-surface text-muted"
+                    }`}
+                  >
+                    {a.published
+                      ? a.unlisted
+                        ? "Unlisted"
+                        : "Live"
+                      : a.submittedAt
+                        ? "Submitted"
+                        : a.scheduledAt
+                          ? "Scheduled"
+                          : "Draft"}
                   </span>
                   {a.memberOnly && (
                     <span className="ml-1 text-xs px-2 py-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 font-medium">
@@ -113,10 +176,16 @@ export default async function AdminArticlesPage({ searchParams }: { searchParams
                   {new Date(a.createdAt).toLocaleDateString()}
                 </td>
                 <td className="px-4 py-3 text-right space-x-2">
-                  <Link href={`/admin/articles/${a.id}`} className="text-xs text-muted hover:text-foreground underline">
+                  <Link
+                    href={`/admin/articles/${a.id}`}
+                    className="text-xs text-muted hover:text-foreground underline"
+                  >
                     View
                   </Link>
-                  <Link href={`/admin/articles/${a.id}/edit`} className="text-xs text-muted hover:text-foreground underline">
+                  <Link
+                    href={`/admin/articles/${a.id}/edit`}
+                    className="text-xs text-muted hover:text-foreground underline"
+                  >
                     Edit
                   </Link>
                 </td>
@@ -135,15 +204,23 @@ export default async function AdminArticlesPage({ searchParams }: { searchParams
 
       {pages > 1 && (
         <div className="flex items-center justify-between mt-4 text-sm">
-          <span className="text-muted">Page {page} of {pages}</span>
+          <span className="text-muted">
+            Page {page} of {pages}
+          </span>
           <div className="flex gap-2">
             {page > 1 && (
-              <Link href={`?page=${page - 1}${q ? `&q=${encodeURIComponent(q)}` : ""}${status ? `&status=${encodeURIComponent(status)}` : ""}`} className="px-3 py-1.5 rounded border border-border-strong hover:bg-surface">
+              <Link
+                href={`?page=${page - 1}${q ? `&q=${encodeURIComponent(q)}` : ""}${status ? `&status=${encodeURIComponent(status)}` : ""}`}
+                className="px-3 py-1.5 rounded border border-border-strong hover:bg-surface"
+              >
                 Previous
               </Link>
             )}
             {page < pages && (
-              <Link href={`?page=${page + 1}${q ? `&q=${encodeURIComponent(q)}` : ""}${status ? `&status=${encodeURIComponent(status)}` : ""}`} className="px-3 py-1.5 rounded border border-border-strong hover:bg-surface">
+              <Link
+                href={`?page=${page + 1}${q ? `&q=${encodeURIComponent(q)}` : ""}${status ? `&status=${encodeURIComponent(status)}` : ""}`}
+                className="px-3 py-1.5 rounded border border-border-strong hover:bg-surface"
+              >
                 Next
               </Link>
             )}

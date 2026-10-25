@@ -10,7 +10,7 @@ export default async function SettingsPage() {
   if (!session?.user?.id) redirect("/login");
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { name: true, bio: true, username: true, avatarUrl: true },
+    select: { name: true, bio: true, username: true, avatarUrl: true, image: true },
   });
   if (!user) redirect("/login");
   return (
@@ -20,7 +20,7 @@ export default async function SettingsPage() {
         <p className="mt-2 mb-8 text-sm text-muted">
           Choose how you appear to readers.
         </p>
-        <ProfileSettings user={user} />
+        <ProfileSettings user={{ ...user, avatarUrl: user.avatarUrl ?? user.image }} />
         <Link href="/settings/notifications" className="mt-8 inline-block text-sm underline">Email preferences and unsubscribe</Link>
       </div>
     </AppShell>
