@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import ImagePicker from "@/components/media/ImagePicker";
 import Link from "next/link";
 
 export default function NewArticlePage() {
@@ -9,16 +10,19 @@ export default function NewArticlePage() {
   const [form, setForm] = useState({
     title: "",
     subtitle: "",
+    coverImage: null as string | null,
     contentText: "",
     memberOnly: false,
     published: false,
     tagSlugs: "",
   });
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (uploading || saving) return;
     setSaving(true);
     setError("");
 
@@ -53,6 +57,7 @@ export default function NewArticlePage() {
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="bg-background rounded-2xl border border-border p-6 space-y-4">
+          <ImagePicker purpose="cover" value={form.coverImage} onChange={(coverImage) => setForm((current) => ({ ...current, coverImage }))} onUploading={setUploading} disabled={saving} />
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">Title *</label>
             <input
@@ -118,7 +123,7 @@ export default function NewArticlePage() {
         <div className="flex gap-3">
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || uploading}
             className="px-6 py-2.5 rounded-full bg-accent text-accent-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50"
           >
             {saving ? "Creating…" : "Create article"}

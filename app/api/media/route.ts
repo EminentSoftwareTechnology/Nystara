@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { getVerifiedAdminSession } from "@/lib/admin-auth";
 import { auth } from "@/lib/auth";
 import { readJson } from "@/lib/request";
 import { rateLimit } from "@/lib/rate-limit";
@@ -13,12 +14,13 @@ import { InvalidImage, toWebp } from "@/lib/image-pipeline";
 const schema = z.object({
   data: z.string().max(820000),
   type: z.enum(["image/jpeg", "image/png", "image/webp"]),
-  purpose: z.enum(["inline", "cover"]).default("inline"),
+  purpose: z.enum(["inline", "cover", "avatar"]).default("inline"),
 });
 
 export async function POST(req: Request) {
   const session = await auth();
-  if (!session?.user?.id)
+  const userId = session?.user?.id ?? (await getVerifiedAdminSession())?.sub;
+  if (!userId)
     return NextResponse.json(
       { error: "Sign in to upload images." },
       { status: 401 },
@@ -30,7 +32,7 @@ export async function POST(req: Request) {
       { status: 503 },
     );
   }
-  const quota = await rateLimit(`media:${session.user.id}`, 50, 86400_000);
+  const quota = await rateLimit(`media:${userId}`, 50, 86400_000);
   if (!quota.ok)
     return NextResponse.json(
       { error: "Daily image upload limit reached." },
@@ -73,7 +75,7 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
-  const key = `stories/${session.user.id}/${randomUUID()}.webp`;
+  const key = `stories/${userId}/${randomUUID()}.webp`;
   const client = r2Client(config);
   try {
     await client.send(

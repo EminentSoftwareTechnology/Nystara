@@ -4,14 +4,16 @@ import { auth, authForAccountSetup } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { eraseUser } from "@/lib/gdpr";
 import { z } from "zod";
+import { isOwnedProfileImage } from "@/lib/storage-url";
 import { readJson } from "@/lib/request";
 
 export async function PATCH(req: Request) {
   const session = await authForAccountSetup();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const input = z.object({ name: z.string().trim().min(1).max(100), bio: z.string().trim().max(500).optional() }).safeParse(await readJson(req));
+  const input = z.object({ name: z.string().trim().min(1).max(100), bio: z.string().trim().max(500).optional(), avatarUrl: z.string().min(1).max(2048).nullable().optional() }).safeParse(await readJson(req));
   if (!input.success) return NextResponse.json({ error: "Add a display name of up to 100 characters." }, { status: 400 });
-  await prisma.user.update({ where: { id: session.user.id }, data: { name: input.data.name, bio: input.data.bio } });
+  if (input.data.avatarUrl && !isOwnedProfileImage(input.data.avatarUrl, session.user.id)) return NextResponse.json({ error: "Upload your own profile photo first." }, { status: 400 });
+  await prisma.user.update({ where: { id: session.user.id }, data: { name: input.data.name, bio: input.data.bio, ...(input.data.avatarUrl !== undefined ? { avatarUrl: input.data.avatarUrl } : {}) } });
   await notifyUser(session.user.id, "profile-updated");
   return NextResponse.json({ saved: true });
 }

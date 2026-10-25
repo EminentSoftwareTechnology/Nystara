@@ -1,5 +1,6 @@
 import { notifyUser } from "@/lib/email/notifications";
 import { NextRequest, NextResponse } from "next/server";
+import { coverImageUrl } from "@/lib/article-schema";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { getVerifiedAdminSession } from "@/lib/admin-auth";
@@ -40,6 +41,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 const updateSchema = z.object({
   title: z.string().min(1).max(250).optional(),
   subtitle: z.string().max(500).optional(),
+  coverImage: coverImageUrl.nullable().optional(),
   contentText: z.string().min(1).max(MAX_CONTENT_CHARS).optional(),
   memberOnly: z.boolean().optional(),
   published: z.boolean().optional(),

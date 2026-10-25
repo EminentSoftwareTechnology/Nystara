@@ -9,16 +9,26 @@ const metadata = z.object({
   thumbnail_url: z.string().refine(safeVideoThumbnail),
 });
 
+async function preview(rawUrl: string) {
+  const input = z.object({ url: videoUrl }).safeParse({ url: rawUrl });
+  if (!input.success) return NextResponse.json({ error: "Use a public YouTube, Vimeo, MP4, WebM or OGV link." }, { status: 400 });
+  const video = parseVideoUrl(input.data.url)!;
+  if (video.provider === "file") return NextResponse.json({ url: video.url, title: "Video" });
+  return providerPreview(video);
+}
+
+export async function GET(req: Request) {
+  return preview(new URL(req.url).searchParams.get("url") ?? "");
+}
+
 export async function POST(req: Request) {
   if (!(await auth())?.user?.id)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const input = z.object({ url: videoUrl }).safeParse(await readJson(req));
-  if (!input.success)
-    return NextResponse.json(
-      { error: "Use a public YouTube or Vimeo video URL." },
-      { status: 400 },
-    );
-  const video = parseVideoUrl(input.data.url)!;
+  const input = z.object({ url: z.string() }).safeParse(await readJson(req));
+  return preview(input.success ? input.data.url : "");
+}
+
+async function providerPreview(video: NonNullable<ReturnType<typeof parseVideoUrl>>) {
   const endpoint =
     video.provider === "youtube"
       ? "https://www.youtube.com/oembed"
@@ -26,7 +36,7 @@ export async function POST(req: Request) {
   try {
     const response = await fetch(
       `${endpoint}?url=${encodeURIComponent(video.url)}&format=json`,
-      { redirect: "error", signal: AbortSignal.timeout(8000) },
+      { redirect: "error", signal: AbortSignal.timeout(8000), next: { revalidate: 3600 } },
     );
     if (!response.ok)
       return NextResponse.json(
