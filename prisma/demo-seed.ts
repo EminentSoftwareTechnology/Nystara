@@ -1,10 +1,11 @@
 // Demo data for local development: 50 readers/writers (user1@gmail.com … user50@gmail.com),
-// 10 stories, tags, claps, comments, bookmarks and follows. Safe to re-run.
+// 10 stories, tags, claps, comments, bookmarks, follows, recent reads, likes and ratings. Safe to re-run.
 // Users sign in with the email magic link; in development it lands in the local SMTP catcher.
 import { PrismaClient, Prisma } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { documentText, type StoryNode } from "../lib/story-document";
 import { slugify } from "../lib/slug";
+import { STORY_THEMES } from "../lib/story-theme";
 
 if (process.env.NODE_ENV === "production") {
   throw new Error("The demo seeder must not run in production");
@@ -378,6 +379,7 @@ async function main() {
         memberOnly: story.memberOnly,
         publishedAt,
         createdAt: publishedAt,
+        theme: STORY_THEMES[index % STORY_THEMES.length].id,
         authorId: author.id,
         tags: {
           create: story.tags.map((slug) => ({
@@ -423,6 +425,37 @@ async function main() {
         });
       }
     }
+  }
+
+  // Recent reads, likes and ratings so the trending and most-viewed panels have data.
+  const articles = await prisma.article.findMany({
+    where: { authorId: { in: userIds }, slug: { in: demoSlugs } },
+    select: { id: true, authorId: true },
+  });
+  const now = Date.now();
+  for (const article of articles) {
+    const popularity = 0.2 + random() * 0.8;
+    const readers = shuffled(userIds.filter((id) => id !== article.authorId), random);
+    const anonymous = Array.from({ length: Math.round(popularity * 120) }, (_, i) => `anon-00000000-0000-4000-8000-${String(i).padStart(12, "0")}`);
+    await prisma.articleView.createMany({
+      data: [...readers.slice(0, Math.round(popularity * readers.length)), ...anonymous].map((visitorId) => ({
+        articleId: article.id,
+        visitorId,
+        createdAt: new Date(now - Math.floor(random() * 47 * 3_600_000)),
+      })),
+    });
+    await prisma.articleFeedback.createMany({
+      data: readers.slice(0, Math.round(popularity * 30)).map((userId) => ({
+        articleId: article.id,
+        voterId: userId,
+        userId,
+        reaction: random() < 0.85 ? "LIKE" : "DISLIKE",
+        rating: random() < 0.7 ? 3 + Math.floor(random() * 3) : null,
+      })),
+    });
+    await prisma.comment.create({
+      data: { articleId: article.id, guestName: "Guest Reader", body: "Found this through a friend. Thanks for writing it." },
+    });
   }
 
   // Everyone follows a few authors and a few other readers.

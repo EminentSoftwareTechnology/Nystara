@@ -696,3 +696,35 @@ Magic-link and OAuth sign-ins land on `/mfa`, which continues to the next page w
 | `proof-options` | — | returns passkey options for a proof |
 
 The first factor returns ten recovery codes once. A missing or rejected proof returns `403 { proofRequired: true }`.
+
+## Reader engagement
+
+Readers are identified by their account, or by the signed `reader_session` cookie set on article pages. Requests without either get `400` ("Reload the page and try again.").
+
+### Post a comment
+
+`POST /api/articles/{id}/comments`
+
+```json
+{ "body": "Great read", "guestName": "Maya", "turnstileToken": "...", "parentId": "optional top-level comment id" }
+```
+
+`guestName` and `turnstileToken` are required for guests and ignored for members. Body 1–2000 characters; names 2–50 letters, spaces, `.`, `'` or `-`. Limit: 10 comments per reader per hour. Returns `201` with the comment.
+
+### Delete a comment
+
+`DELETE /api/comments/{id}`: the commenter or the story's author. Soft delete; returns `204`.
+
+### Like, dislike and rate
+
+`PUT /api/articles/{id}/feedback`
+
+```json
+{ "reaction": "LIKE" | "DISLIKE" | null, "rating": 1-5 | null }
+```
+
+Omitted fields are unchanged and `null` clears a vote. Limit: 60 votes per reader per 10 minutes. Returns the totals: `likes`, `dislikes`, `ratingAverage`, `ratingCount` and `mine`.
+
+### Upload an image
+
+`POST /api/media` now also takes `"purpose": "inline" | "cover"` (default `inline`). Uploads are scanned by ClamAV when `CLAMAV_HOST` is set (`422` if infected, `503` if the scanner is down), then re-encoded as WebP up to 1600 px (inline) or 2400 px (cover) on the long edge, with metadata removed.

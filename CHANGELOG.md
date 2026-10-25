@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Article hero header, share bar (Facebook, LinkedIn, X, Instagram, Discord, copy link) and a go-to-top button
+- Comments from members and named guests (Turnstile-verified), with one level of replies and author moderation
+- Like/dislike and 1–5 star ratings for members and anonymous readers
+- "What's trending" (48-hour reads, likes and comments) and "Most viewed today" sidebar on article pages
+- Open Graph and Twitter card metadata for article links
+- Word-style editor ribbon (Home, Insert, Design) with a styles gallery and six document themes saved per story
+- Image uploads are virus-scanned with ClamAV when `CLAMAV_HOST` is set, decoded, stripped of metadata, resized and stored in R2 as WebP
 - Passkeys (WebAuthn) for passwordless sign-in and as a second factor, for readers and admins
 - Authenticator-app (TOTP) two-step verification with single-use recovery codes
 - `/me/security` and `/admin/security` settings pages, and a `/mfa` sign-in challenge
@@ -22,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Member-only article support
 
 ### Changed
+- Every article read is now recorded for trending; the members-only paywall quota counts only members-only reads, as before
 - Renamed the project from TechScribe to Nystara (package, docs, Docker, JWT audiences, email sender)
 - Upgraded nodemailer to 10.2.1 (fixes GHSA-c7w3-x93f-qmm8 and 16 related advisories); `npm audit` reports 0 vulnerabilities
 - Updated documentation with cross-references
