@@ -5,7 +5,7 @@ import { NextRequest } from "next/server";
 const COOKIE_NAME = "admin_session";
 const MAX_AGE = 60 * 60 * 8; // 8 hours
 // Distinguishes admin tokens from other JWTs signed with the same secret (e.g. oauth-turnstile).
-export const ADMIN_AUDIENCE = "techscribe:admin";
+export const ADMIN_AUDIENCE = "nystara:admin";
 
 function getSecret(): Uint8Array {
   const secret = process.env.ADMIN_JWT_SECRET;
@@ -70,4 +70,42 @@ export async function clearAdminSessionCookie(): Promise<void> {
 
 export function getAdminTokenFromRequest(req: NextRequest): string | undefined {
   return req.cookies.get(COOKIE_NAME)?.value;
+}
+
+// Short-lived proof that the password step succeeded for an admin who still owes a second factor.
+const MFA_PENDING_COOKIE = "admin_mfa_pending";
+const MFA_PENDING_AUDIENCE = "nystara:admin-mfa";
+const MFA_PENDING_MAX_AGE = 5 * 60;
+
+export async function setAdminMfaPending(userId: string, version: number): Promise<void> {
+  const token = await new SignJWT({ version })
+    .setProtectedHeader({ alg: "HS256" })
+    .setSubject(userId)
+    .setIssuedAt()
+    .setAudience(MFA_PENDING_AUDIENCE)
+    .setExpirationTime(`${MFA_PENDING_MAX_AGE}s`)
+    .sign(getSecret());
+  (await cookies()).set(MFA_PENDING_COOKIE, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    path: "/api/admin/login",
+    maxAge: MFA_PENDING_MAX_AGE,
+  });
+}
+
+export async function getAdminMfaPending(): Promise<{ sub: string; version: number } | null> {
+  const token = (await cookies()).get(MFA_PENDING_COOKIE)?.value;
+  if (!token) return null;
+  try {
+    const { payload } = await jwtVerify(token, getSecret(), { algorithms: ["HS256"], audience: MFA_PENDING_AUDIENCE });
+    if (typeof payload.sub !== "string" || !Number.isSafeInteger(payload.version)) return null;
+    return { sub: payload.sub, version: payload.version as number };
+  } catch {
+    return null;
+  }
+}
+
+export async function clearAdminMfaPending(): Promise<void> {
+  (await cookies()).set(MFA_PENDING_COOKIE, "", { path: "/api/admin/login", maxAge: 0 });
 }

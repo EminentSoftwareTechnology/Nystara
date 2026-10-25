@@ -29,7 +29,7 @@ const createdUsers: string[] = [];
 
 async function adminToken(version: number) {
   return new SignJWT({ sub: adminId, email: "admin-review@example.test", role: "ADMIN", version })
-    .setProtectedHeader({ alg: "HS256" }).setAudience("techscribe:admin").setIssuedAt().setExpirationTime("1h")
+    .setProtectedHeader({ alg: "HS256" }).setAudience("nystara:admin").setIssuedAt().setExpirationTime("1h")
     .sign(new TextEncoder().encode(process.env.ADMIN_JWT_SECRET));
 }
 async function request(path: string, cookie?: string, method = "GET", body?: object, origin = base) {

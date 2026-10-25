@@ -3,15 +3,15 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: techscribe
-      POSTGRES_PASSWORD: techscribe
-      POSTGRES_DB: techscribe
+      POSTGRES_USER: nystara
+      POSTGRES_PASSWORD: nystara
+      POSTGRES_DB: nystara
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
       - pgdata_dev:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U techscribe"]
+      test: ["CMD-SHELL", "pg_isready -U nystara"]
       interval: 5s
       timeout: 5s
       retries: 10

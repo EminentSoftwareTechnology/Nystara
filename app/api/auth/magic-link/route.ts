@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   if (!limit.ok) return NextResponse.json({ error: "Too many requests" }, { status: 429, headers: { "Retry-After": String(limit.retryAfter) } });
 
   try {
-    await signIn(process.env.NODE_ENV === "production" ? "resend" : "nodemailer", { email, redirect: false });
+    await signIn(process.env.NODE_ENV === "production" ? "resend" : "nodemailer", { email, redirect: false, redirectTo: "/mfa" });
   } catch {
     return NextResponse.json({ error: "Failed to send magic link" }, { status: 500 });
   }

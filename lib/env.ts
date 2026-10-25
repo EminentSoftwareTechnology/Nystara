@@ -20,6 +20,7 @@ const optionalEnvVars = [
   "NEXT_PUBLIC_TURNSTILE_SITE_KEY",
   "TURNSTILE_SECRET_KEY",
   "ADMIN_JWT_SECRET",
+  "MFA_ENCRYPTION_KEY",
   "ADMIN_EMAIL",
   "ADMIN_PASSWORD",
   "STRIPE_SECRET_KEY",
@@ -88,6 +89,12 @@ export function validateEnv(): void {
     ) {
       warnings.push(
         "⚠️  Turnstile not configured. Bot protection disabled.",
+      );
+    }
+
+    if (!process.env.MFA_ENCRYPTION_KEY) {
+      warnings.push(
+        "⚠️  MFA_ENCRYPTION_KEY not set. Authenticator-app setup and sign-in will fail.",
       );
     }
 

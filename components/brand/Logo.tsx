@@ -52,17 +52,3 @@ export function Logo({ href = "/", className, wordmark }: { href?: string; class
     </Link>
   );
 }
-
-/** For surfaces that are always dark (admin chrome), regardless of the active theme. */
-export function DarkWordmark({ className }: { className?: string }) {
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src="/brand/logos/dark/nystara-dark.svg"
-      alt="Nystara"
-      width={1540}
-      height={360}
-      className={cx("aspect-[1540/360] w-auto", className ?? "h-8")}
-    />
-  );
-}

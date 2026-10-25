@@ -13,6 +13,12 @@ const CREDENTIAL_ENDPOINTS = new Set([
   "/api/auth/magic-link",
   "/api/auth/oauth-turnstile",
 ]);
+// Second-factor checks and factor changes get the strict tier: a 6-digit code must not be guessable.
+const CREDENTIAL_PREFIXES = ["/api/auth/mfa/", "/api/auth/passkey/", "/api/admin/login/", "/api/me/security/", "/api/admin/security/"];
+
+function isCredentialEndpoint(pathname: string): boolean {
+  return CREDENTIAL_ENDPOINTS.has(pathname) || CREDENTIAL_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+}
 
 async function guardApi(req: NextRequest): Promise<NextResponse | null> {
   const { pathname } = req.nextUrl;
@@ -28,7 +34,7 @@ async function guardApi(req: NextRequest): Promise<NextResponse | null> {
     }
   }
 
-  const [tier, limit] = CREDENTIAL_ENDPOINTS.has(pathname)
+  const [tier, limit] = isCredentialEndpoint(pathname)
     ? ["credential", 10]
     : isWrite
       ? ["write", 60]

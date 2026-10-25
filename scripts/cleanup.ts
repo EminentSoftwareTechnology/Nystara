@@ -8,7 +8,8 @@ async function main() {
     await prisma.articleView.deleteMany({ where: { createdAt: { lt: before } } });
     await prisma.verificationToken.deleteMany({ where: { expires: { lt: new Date() } } });
     await prisma.session.deleteMany({ where: { expires: { lt: new Date() } } });
-    console.info("Expired reader views, verification tokens and sessions removed");
+    await prisma.authChallenge.deleteMany({ where: { expiresAt: { lt: new Date() } } });
+    console.info("Expired reader views, verification tokens, sessions and passkey challenges removed");
   } finally {
     await prisma.$disconnect();
   }

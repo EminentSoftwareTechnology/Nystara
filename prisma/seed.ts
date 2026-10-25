@@ -6,7 +6,7 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
 
 async function main() {
-  const email = process.env.ADMIN_EMAIL ?? "admin@techscribe.io";
+  const email = process.env.ADMIN_EMAIL ?? "admin@nystara.com";
   const password = process.env.ADMIN_PASSWORD;
   if (!passwordSchema.safeParse(password).success) throw new Error("ADMIN_PASSWORD must be 12+ characters and at most 72 UTF-8 bytes");
   if (!password) throw new Error("ADMIN_PASSWORD is required");

@@ -28,6 +28,8 @@ export async function GET(req: NextRequest) {
         bio: true, avatarUrl: true, image: true, createdAt: true, stripeCustomerId: true,
         accounts: { select: { provider: true, providerAccountId: true } },
         subscription: { select: { status: true, currentPeriodEnd: true, cancelAtPeriodEnd: true } },
+        mfaEnabled: true, totpEnabledAt: true,
+        passkeys: { select: { name: true, createdAt: true, lastUsedAt: true, deviceType: true, backedUp: true } },
       },
     });
     if (!user) return NextResponse.json({ error: "Not found" }, { status: 404 });

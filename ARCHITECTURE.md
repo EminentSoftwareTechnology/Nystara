@@ -1,4 +1,4 @@
-# TechScribe — Medium-like Technical Publishing Platform
+# Nystara — Medium-like Technical Publishing Platform
 
 > A freemium article platform for technical writers. Free reading up to a monthly limit, premium for unlimited access, writer monetization, email digest, and social sharing.
 
@@ -153,7 +153,7 @@ Browser → Vercel CDN (cached HTML, ISR 60s)
 ### 5.1 Folder Structure
 
 ```text
-techscribe/
+nystara/
 ├── app/                        # Next.js App Router
 │   ├── (public)/               # Route group — no auth
 │   │   ├── page.tsx            # Home feed
@@ -417,7 +417,7 @@ Server-side excerpt generation:
 providers: [
   Google({ clientId, clientSecret }),
   GitHub({ clientId, clientSecret }),
-  Resend({ apiKey, from: "noreply@techscribe.io" }), // magic link
+  Resend({ apiKey, from: "noreply@nystara.com" }), // magic link
 ];
 adapter: PrismaAdapter(prisma);
 ```

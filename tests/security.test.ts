@@ -55,7 +55,7 @@ test("untrusted forwarded IP headers cannot select limiter buckets", () => {
 test("admin tokens require audience, claim types and a session version", async () => {
   const claims = { sub: "admin", email: "admin@example.test", role: "ADMIN", version: 2 };
   assert.deepEqual(await verifyAdminToken(await createAdminSession(claims)), claims);
-  const token = await new SignJWT({ ...claims, version: undefined }).setProtectedHeader({ alg: "HS256" }).setAudience("techscribe:admin").setExpirationTime("1h").sign(new TextEncoder().encode(process.env.ADMIN_JWT_SECRET));
+  const token = await new SignJWT({ ...claims, version: undefined }).setProtectedHeader({ alg: "HS256" }).setAudience("nystara:admin").setExpirationTime("1h").sign(new TextEncoder().encode(process.env.ADMIN_JWT_SECRET));
   assert.equal(await verifyAdminToken(token), null);
   const reader = await readerIdentity();
   assert.equal(await verifyAdminToken(reader.token!), null);
