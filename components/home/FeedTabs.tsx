@@ -28,14 +28,14 @@ export default function FeedTabs({ articles, featured }: Props) {
 
   return (
     <div>
-      <div className="flex gap-6 border-b border-border mb-2">
+      <div className="mb-2 inline-flex rounded-full border border-border bg-background p-1">
         {(["for-you", "featured"] as const).map((t) => (
           <button
             key={t}
             type="button"
             aria-pressed={tab === t}
             onClick={() => setTab(t)}
-            className="pb-3 text-sm font-medium border-b-2 -mb-px transition-colors border-transparent text-muted hover:text-foreground aria-pressed:border-foreground aria-pressed:text-foreground"
+            className="rounded-full px-4 py-1.5 text-sm font-medium text-muted transition-colors hover:text-foreground aria-pressed:bg-accent aria-pressed:text-accent-foreground"
           >
             {t === "for-you" ? "For you" : "Featured"}
           </button>

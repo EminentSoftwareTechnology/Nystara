@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowRightIcon } from "@/components/icons";
-import { Heading, PageIntro } from "@/components/marketing/Heading";
+import { Eyebrow, Heading, PageIntro } from "@/components/marketing/Heading";
+import { FeatureGrid } from "@/components/marketing/FeatureGrid";
 import { Wall } from "@/components/marketing/Wall";
-import { type Feature, READER_FEATURES, WRITER_FEATURES } from "@/components/marketing/features";
-import { CARD, SECTION, buttonClass } from "@/components/ui";
+import { READER_FEATURES, WRITER_FEATURES } from "@/components/marketing/features";
+import { CARD, SECTION } from "@/components/ui";
 
 export const metadata: Metadata = {
   title: "Features",
@@ -17,20 +16,6 @@ const FACTS = [
   { value: "0", label: "advertising or tracking cookies" },
   { value: "3", label: "ways to sign in: email link, Google or GitHub" },
 ];
-
-function Grid({ features }: { features: Feature[] }) {
-  return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {features.map(({ Icon, title, body }) => (
-        <div key={title} className={`${CARD} flex flex-col gap-2.5 p-5`}>
-          <Icon className="text-muted" />
-          <h3 className="font-semibold">{title}</h3>
-          <p className="text-sm leading-6 text-muted">{body}</p>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 export default function FeaturesPage() {
   return (
@@ -45,7 +30,7 @@ export default function FeaturesPage() {
           {FACTS.map((f) => (
             <div key={f.label} className={`${CARD} flex flex-col-reverse gap-1 p-5`}>
               <dt className="text-sm text-muted">{f.label}</dt>
-              <dd className="text-3xl font-semibold tracking-tight">{f.value}</dd>
+              <dd className="font-display text-5xl font-medium tracking-tight">{f.value}</dd>
             </div>
           ))}
         </dl>
@@ -53,14 +38,14 @@ export default function FeaturesPage() {
 
       <section aria-labelledby="writers" className={SECTION}>
         <Heading eyebrow="For writers" id="writers" title="Write, publish and grow in one place." />
-        <Grid features={WRITER_FEATURES} />
+        <FeatureGrid features={WRITER_FEATURES} />
       </section>
 
       <section aria-labelledby="paywall" className={SECTION}>
         <div className="grid items-center gap-8 lg:grid-cols-[1fr_1.2fr] lg:gap-12">
           <div className="flex flex-col gap-4">
-            <p className="text-sm text-muted">Member-only stories</p>
-            <h2 id="paywall" className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
+            <Eyebrow>Member-only stories</Eyebrow>
+            <h2 id="paywall" className="font-display text-3xl font-medium tracking-tight text-balance sm:text-4xl">
               Free to read, with room to support the writers you love.
             </h2>
             <p className="leading-7 text-muted">
@@ -84,20 +69,9 @@ export default function FeaturesPage() {
 
       <section aria-labelledby="readers" className={SECTION}>
         <Heading eyebrow="For readers" id="readers" title="Read comfortably, on your terms." />
-        <Grid features={READER_FEATURES} />
+        <FeatureGrid features={READER_FEATURES} />
       </section>
 
-      <section className="mx-auto flex w-full max-w-6xl flex-col items-center gap-6 px-4 pb-24 pt-10 text-center sm:px-6">
-        <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">See it for yourself.</h2>
-        <div className="flex flex-wrap justify-center gap-3">
-          <Link href="/signup" className={buttonClass("primary", "lg")}>
-            Create your account <ArrowRightIcon size={16} />
-          </Link>
-          <Link href="/#latest" className={buttonClass("secondary", "lg")}>
-            Read the blog
-          </Link>
-        </div>
-      </section>
     </div>
   );
 }

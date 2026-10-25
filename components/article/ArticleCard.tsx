@@ -22,7 +22,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
   const href = authorHandle ? `/${authorHandle}/${article.slug}` : "#";
 
   return (
-    <article className="py-6 flex gap-6">
+    <article className="flex gap-5 py-7 sm:gap-8">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-2">
           {article.author.avatarUrl ? (
@@ -54,7 +54,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
         </div>
 
         <Link href={href} className="group">
-          <h2 className="text-xl font-semibold tracking-tight leading-snug group-hover:underline line-clamp-2">
+          <h2 className="line-clamp-2 font-display text-[22px] font-medium leading-snug tracking-tight group-hover:underline sm:text-2xl">
             {article.title}
           </h2>
           {article.subtitle && (
@@ -88,9 +88,9 @@ export default function ArticleCard({ article }: ArticleCardProps) {
           <Image
             src={article.coverImage}
             alt={article.title}
-            width={112}
+            width={144}
             height={112}
-            className="object-cover rounded-xl border border-border w-28 h-28"
+            className="h-20 w-20 rounded-2xl border border-border object-cover sm:h-28 sm:w-36"
           />
         </Link>
       )}

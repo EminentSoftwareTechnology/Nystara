@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRightIcon } from "@/components/icons";
 import { PageIntro } from "@/components/marketing/Heading";
-import { CARD, SECTION, buttonClass } from "@/components/ui";
+import { TILE, SECTION, buttonClass } from "@/components/ui";
 
 export const metadata: Metadata = { title: "About" };
 
@@ -32,8 +32,8 @@ export default function AboutPage() {
       <section className={SECTION}>
         <div className="grid gap-3 lg:grid-cols-3">
           {SECTIONS.map(({ title, body }) => (
-            <div key={title} className={`${CARD} flex flex-col gap-2.5 p-6`}>
-              <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
+            <div key={title} className={`${TILE} flex flex-col gap-3 p-7`}>
+              <h2 className="font-display text-2xl font-medium tracking-tight">{title}</h2>
               <p className="text-sm leading-6 text-muted">{body}</p>
             </div>
           ))}

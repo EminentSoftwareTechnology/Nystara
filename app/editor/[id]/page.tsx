@@ -1,7 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { hasPremiumAccess } from "@/lib/premium";
 import { legacyDocument, storyNode } from "@/lib/story-document";
 import StoryEditor from "@/app/new-story/StoryEditor";
 
@@ -25,6 +24,7 @@ export default async function EditStoryPage({
         contentText: true,
         memberOnly: true,
         coverImage: true,
+        updatedAt: true,
         author: { select: { username: true } },
       },
     }),
@@ -34,7 +34,6 @@ export default async function EditStoryPage({
         name: true,
         username: true,
         avatarUrl: true,
-        subscription: { select: { status: true, currentPeriodEnd: true } },
       },
     }),
   ]);
@@ -46,9 +45,9 @@ export default async function EditStoryPage({
       email={session.user.email ?? null}
       avatarUrl={user.avatarUrl}
       username={user.username}
-      premium={hasPremiumAccess(user.subscription)}
       initial={{
         ...article,
+        updatedAt: article.updatedAt.toISOString(),
         content:
           doc.success && doc.data.content
             ? doc.data

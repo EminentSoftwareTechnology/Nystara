@@ -10,7 +10,7 @@ export default function HelpPage() {
           {[
             [
               "Write and format",
-              "Use headings, fonts, alignment, lists, quotes and code in the writing toolbar. Select a passage before applying formatting. Save draft keeps your work; reopen it from Stories.",
+              "Use headings, fonts, alignment, lists, quotes and code in the writing toolbar. Select a passage before applying formatting. Your writing is kept in this browser until you publish, so closing the tab won’t lose it. Save draft keeps it on your account; reopen it from Stories.",
             ],
             [
               "Images and videos",
@@ -18,7 +18,7 @@ export default function HelpPage() {
             ],
             [
               "Premium AI editor",
-              "Active members can request editorial feedback, titles, outlines and passage edits. Review suggestions before appending or replacing selected text. AI and storage require administrator configuration.",
+              "Open AI editor from the menu. Active members can request editorial feedback, titles, outlines and passage edits, then copy a suggestion or add it to their new story. AI and storage require administrator configuration.",
             ],
             [
               "Publish",
