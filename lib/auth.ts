@@ -6,37 +6,15 @@ import {
   OAUTH_TURNSTILE_COOKIE,
   verifyOAuthTurnstileToken,
 } from "@/lib/oauth-turnstile";
-import { slugify } from "@/lib/slug";
-
-async function generateUsername(email: string): Promise<string> {
-  const base = slugify(email.split("@")[0]) || "user";
-  const existing = await prisma.user.findMany({
-    where: { username: { startsWith: base } },
-    select: { username: true },
-  });
-  if (!existing.some((u) => u.username === base)) return base;
-  const suffixes = existing
-    .map((u) => {
-      const match = u.username?.match(
-        new RegExp(`^${escapeRegex(base)}-(\\d+)$`),
-      );
-      return match ? parseInt(match[1], 10) : 0;
-    })
-    .filter(Boolean);
-  const next = suffixes.length > 0 ? Math.max(...suffixes) + 1 : 2;
-  return `${base}-${next}`;
-}
-
-function escapeRegex(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
+import { randomUUID } from "node:crypto";
 
 export const { handlers, auth, signIn, signOut } = NextAuth((req) => ({
   ...authConfig,
   adapter: PrismaAdapter(prisma),
   callbacks: {
     ...authConfig.callbacks,
-    async signIn({ account }) {
+    async signIn({ account, email }) {
+      if (email?.verificationRequest) return req === undefined;
       if (account?.type === "oauth") {
         const token = req?.cookies.get(OAUTH_TURNSTILE_COOKIE)?.value;
         return verifyOAuthTurnstileToken(token);
@@ -52,7 +30,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth((req) => ({
   events: {
     async createUser({ user }) {
       if (!user.email || !user.id) return;
-      const username = await generateUsername(user.email);
+      const username = `writer-${randomUUID()}`;
       await prisma.user.update({ where: { id: user.id }, data: { username } });
     },
   },

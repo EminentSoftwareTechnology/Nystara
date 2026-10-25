@@ -66,9 +66,8 @@ and server-side paywall enforcement.
 ### Request path — article read
 
 ```text
-Browser → CDN (ISR cache, 60s TTL)
-       → cache miss: Next.js SSR → Prisma → PostgreSQL
-       → middleware:
+Browser → Next.js dynamic rendering (private, no-store) → Prisma → PostgreSQL
+       → server-side article access check:
             article.memberOnly = false  → render full content
             article.memberOnly = true
               └── valid session + ACTIVE subscription → render full
@@ -93,7 +92,6 @@ Browser → CDN (ISR cache, 60s TTL)
 | Payments      | Stripe SDK installed; subscription routes TODO  |
 | Email         | Resend + React Email                            |
 | Image storage | Vercel Blob                                     |
-| OG images     | `@vercel/og` (edge-native)                      |
 | Validation    | Zod                                             |
 | State         | Zustand (editor UI only)                        |
 
@@ -101,78 +99,38 @@ Browser → CDN (ISR cache, 60s TTL)
 
 ## Local Development
 
-### Prerequisites
-
-- Node.js 22+
-- Docker + Docker Compose (for the database)
-
-### 1. Install dependencies
+Use Node 22.12+ and Docker with Compose v2.
 
 ```bash
-npm install
+./start.sh
 ```
 
-### 2. Configure environment
+The launcher installs locked dependencies, creates a private `.env.local` with random signing secrets if no env file exists, starts loopback-only PostgreSQL and Redis, generates Prisma, applies migrations, and starts development on port 3000. It parses env files as dotenv data. Existing process variables override env files; `.env.local` overrides `.env`. It does not seed or reset your database.
+
+Configure Google/GitHub or Resend credentials to use the corresponding sign-in flow. Development can use Turnstile test keys; production rejects them. Seed the first administrator only after setting `ADMIN_EMAIL` and `ADMIN_PASSWORD` (12+ characters, at most 72 UTF-8 bytes) in the environment:
 
 ```bash
-cp .env.example .env
+npm run db:seed
+PORT=3001 ./start.sh dev
+./start.sh prod
+./start.sh --help
 ```
 
-Fill in `.env`. At minimum for local dev you need:
-
-```env
-DATABASE_URL=postgresql://techscribe:techscribe@localhost:5432/techscribe
-NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=<run: openssl rand -base64 32>
-GITHUB_CLIENT_ID=...
-GITHUB_CLIENT_SECRET=...
-```
-
-### 3. Start the database
-
-```bash
-docker compose up db -d
-```
-
-### 4. Run migrations and generate the Prisma client
-
-```bash
-npm run db:migrate
-```
-
-### 5. Start the dev server
-
-```bash
-npm run dev
-```
-
-App is at `http://localhost:3000`.
-
----
+`HOST` defaults to `127.0.0.1`. Set it explicitly if LAN access is required. Remote databases require `ALLOW_REMOTE_MIGRATE=1`; startup never resets or seeds them automatically. `prod` builds locally and requires production CAPTCHA keys and Redis. Keep development infrastructure credentials for local use only.
 
 ## Docker
 
-Build and run the full stack (app + Postgres) locally with Docker Compose:
-
 ```bash
-docker compose up --build
+./start.sh docker
 ```
 
-The entrypoint runs `prisma migrate deploy` before starting the server, so the database is always in sync on container start.
+Set `POSTGRES_PASSWORD` to a random hex value, `NEXTAUTH_URL` to the browser-visible origin, strong signing secrets, and real Turnstile site/secret keys. The site key is a public build argument; database URLs and signing secrets are runtime variables. Existing database volumes retain their original password; changing an env value does not rotate an existing database credential.
 
-To run the app only (against an external database):
+For an existing database or hosted deployment, use the runtime variables in [.env.example](.env.example). Production requires `REDIS_URL` for shared rate limits. Leave `TRUST_PROXY_IP=0` until you verify that ingress appends/overwrites the forwarding header and blocks direct app access. With it disabled, clients share conservative aggregate buckets. Use a dedicated limiter Redis with bounded memory and `noeviction`, so eviction cannot reset blocked buckets.
 
-```bash
-docker build \
-  --build-arg DATABASE_URL=postgresql://... \
-  -t techscribe .
+The container runs as a non-root user and applies migrations before serving. Schedule `npm run db:cleanup` daily from an environment with development tools installed to delete reading records older than 30 days and expired sessions/tokens. Reading metrics reflect retained records. Retention cleanup is not automatically scheduled by this repository.
 
-docker run \
-  -e DATABASE_URL=postgresql://... \
-  -e NEXTAUTH_SECRET=... \
-  -p 3000:3000 \
-  techscribe
-```
+See [SECURITY_REVIEW.md](SECURITY_REVIEW.md) for findings, validation and deployment limits.
 
 ### Image layers
 

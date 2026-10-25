@@ -1,3 +1,4 @@
+import { parsePage } from "@/lib/request";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -6,14 +7,15 @@ import AppShell from "@/components/layout/AppShell";
 
 export const dynamic = "force-dynamic";
 
-export default async function StatsPage() {
+export default async function StatsPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
+  const page = parsePage((await searchParams).page);
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const [articles, followers, viewsThisMonth, clapsThisMonth] = await Promise.all([
+  const [articles, followers, viewsThisMonth, clapsThisMonth, totalViews, totalArticles, totalComments] = await Promise.all([
     prisma.article.findMany({
       where: { authorId: session.user.id, published: true },
       select: {
@@ -23,7 +25,9 @@ export default async function StatsPage() {
         publishedAt: true,
         _count: { select: { views: true, claps: true, comments: true } },
       },
-      orderBy: { publishedAt: "desc" },
+      orderBy: [{ publishedAt: "desc" }, { id: "desc" }],
+      skip: (page - 1) * 20,
+      take: 20,
     }),
     prisma.follow.count({ where: { followingId: session.user.id } }),
     prisma.articleView.count({
@@ -37,9 +41,10 @@ export default async function StatsPage() {
         article: { authorId: session.user.id },
       },
     }),
+    prisma.articleView.count({ where: { article: { authorId: session.user.id, published: true } } }),
+    prisma.article.count({ where: { authorId: session.user.id, published: true } }),
+    prisma.comment.count({ where: { article: { authorId: session.user.id, published: true } } }),
   ]);
-
-  const totalViews = articles.reduce((sum, a) => sum + a._count.views, 0);
 
   const monthLabel = now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
   const monthRange = `${monthStart.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })} – Today (UTC)`;
@@ -82,7 +87,7 @@ export default async function StatsPage() {
         {/* Metric pills */}
         <div className="grid grid-cols-5 gap-4 mb-8">
           {[
-            { label: "Presentations", value: articles.length },
+            { label: "Presentations", value: totalArticles },
             { label: "Views", value: viewsThisMonth },
             { label: "Reads", value: Math.floor(viewsThisMonth * 0.6) },
             { label: "Followers", value: followers },
@@ -143,7 +148,7 @@ export default async function StatsPage() {
               <span className="w-16 text-right">{totalViews.toLocaleString()}</span>
               <span className="w-16 text-right">{Math.floor(totalViews * 0.6).toLocaleString()}</span>
               <span className="w-16 text-right">{clapsThisMonth.toLocaleString()}</span>
-              <span className="w-20 text-right">{articles.reduce((s, a) => s + a._count.comments, 0).toLocaleString()}</span>
+              <span className="w-20 text-right">{totalComments.toLocaleString()}</span>
             </div>
           </div>
         )}
@@ -156,6 +161,10 @@ export default async function StatsPage() {
             </Link>
           </div>
         )}
+        <nav aria-label="Stats pages" className="flex justify-between mt-8 text-sm">
+          {page > 1 ? <Link href={`/me/stats?page=${page - 1}`}>Previous page</Link> : <span />}
+          {page * 20 < totalArticles && page < 1000 && <Link href={`/me/stats?page=${page + 1}`}>Next page</Link>}
+        </nav>
       </div>
     </AppShell>
   );

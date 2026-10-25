@@ -4,7 +4,9 @@ import { isActiveAdmin } from "@/lib/admin-auth";
 import { getClientIp } from "@/lib/client-ip";
 import { rateLimit } from "@/lib/rate-limit";
 
-const MAX_BODY_BYTES = 1024 * 1024;
+import { isSameOriginWrite, readBody, PayloadTooLarge, BodyReadTimeout } from "@/lib/request";
+import { contentSecurityPolicy } from "@/lib/csp";
+import { readerIdentity, VISITOR_COOKIE, VISITOR_MAX_AGE } from "@/lib/visitor";
 const MINUTE = 60_000;
 const CREDENTIAL_ENDPOINTS = new Set([
   "/api/admin/login",
@@ -12,27 +14,13 @@ const CREDENTIAL_ENDPOINTS = new Set([
   "/api/auth/oauth-turnstile",
 ]);
 
-function isSameOrigin(req: NextRequest, origin: string): boolean {
-  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
-  try {
-    return !!host && new URL(origin).host === host;
-  } catch {
-    return false;
-  }
-}
-
-function guardApi(req: NextRequest): NextResponse | null {
+async function guardApi(req: NextRequest): Promise<NextResponse | null> {
   const { pathname } = req.nextUrl;
   const isWrite = !["GET", "HEAD", "OPTIONS"].includes(req.method);
 
   if (isWrite) {
-    // Browsers always send Origin on cross-site writes, so a mismatch means CSRF.
-    const origin = req.headers.get("origin");
-    if (origin && !isSameOrigin(req, origin)) {
+    if (!isSameOriginWrite(req)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-    if (Number(req.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) {
-      return NextResponse.json({ error: "Payload too large" }, { status: 413 });
     }
     // Magic links must go through /api/auth/magic-link, which enforces Turnstile.
     if (pathname === "/api/auth/signin/resend") {
@@ -45,12 +33,22 @@ function guardApi(req: NextRequest): NextResponse | null {
     : isWrite
       ? ["write", 60]
       : ["read", 300];
-  const { ok, retryAfter } = rateLimit(`${tier}:${getClientIp(req.headers)}`, limit, MINUTE);
+  const { ok, retryAfter } = await rateLimit(`${tier}:${getClientIp(req.headers)}`, limit, MINUTE);
   if (!ok) {
     return NextResponse.json(
       { error: "Too many requests" },
       { status: 429, headers: { "Retry-After": String(retryAfter) } },
     );
+  }
+  if (isWrite) {
+    try {
+      await readBody(req.clone());
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof PayloadTooLarge ? "Payload too large" : "Invalid body" },
+        { status: error instanceof PayloadTooLarge ? 413 : error instanceof BodyReadTimeout ? 408 : 400 },
+      );
+    }
   }
   return null;
 }
@@ -66,16 +64,40 @@ async function guardAdmin(req: NextRequest): Promise<NextResponse> {
 
 export default async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
-
+  if (pathname === "/api/health" && ["GET", "HEAD"].includes(req.method)) return NextResponse.next();
   if (pathname.startsWith("/api/")) {
-    return guardApi(req) ?? NextResponse.next();
+    const response = await guardApi(req) ?? NextResponse.next();
+    response.headers.set("Cache-Control", "private, no-store");
+    return response;
   }
-  if (pathname.startsWith("/admin") && pathname !== "/admin/login") {
-    return guardAdmin(req);
+  const { ok, retryAfter } = await rateLimit(`page:${getClientIp(req.headers)}`, 300, MINUTE);
+  if (!ok) return new NextResponse("Too many requests", { status: 429, headers: { "Retry-After": String(retryAfter) } });
+
+  if ((pathname === "/admin" || pathname.startsWith("/admin/")) && pathname !== "/admin/login") {
+    const response = await guardAdmin(req);
+    if (response.status !== 200) {
+      response.headers.set("Cache-Control", "private, no-store");
+      return response;
+    }
   }
-  return NextResponse.next();
+  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+  const csp = contentSecurityPolicy(nonce);
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set("Content-Security-Policy", csp);
+  requestHeaders.delete("x-reader-id");
+  const isArticle = /^\/[^/]+\/[^/]+$/.test(pathname) && !pathname.startsWith("/admin/") && !pathname.startsWith("/me/");
+  const reader = isArticle ? await readerIdentity(req.cookies.get(VISITOR_COOKIE)?.value) : null;
+  if (reader) requestHeaders.set("x-reader-id", reader.id);
+  const response = NextResponse.next({ request: { headers: requestHeaders } });
+  response.headers.set("Content-Security-Policy", csp);
+  response.headers.set("Cache-Control", "private, no-store");
+  if (reader?.token) response.cookies.set(VISITOR_COOKIE, reader.token, {
+    httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: VISITOR_MAX_AGE,
+  });
+  return response;
 }
 
 export const config = {
-  matcher: ["/api/:path*", "/admin/:path*"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };

@@ -1,3 +1,4 @@
+import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
 // GDPR Art. 17 erasure. Owned rows (articles, comments, claps, bookmarks,
@@ -18,4 +19,5 @@ export async function eraseUser(userId: string, email: string): Promise<void> {
     prisma.articleView.deleteMany({ where: { visitorId: userId } }),
     prisma.user.delete({ where: { id: userId } }),
   ]);
+  audit("account_erasure", "success");
 }

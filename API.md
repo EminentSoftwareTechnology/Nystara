@@ -203,7 +203,7 @@ Cookie: authjs.session-token=...
 
 **POST** `/api/articles/[id]/publish`
 
-Toggle article published status.
+Set article publication status. Omit the body to publish, or send `{"published": false}` to unpublish. Repeating the same request is idempotent.
 
 **Headers:**
 ```
@@ -612,9 +612,8 @@ For file uploads (future):
 All API responses include:
 - `X-Content-Type-Options: nosniff`
 - `X-Frame-Options: DENY`
-- `X-XSS-Protection: 1; mode=block`
 
-(Set by Next.js middleware)
+(Set by Next.js response configuration and proxy)
 
 ---
 
@@ -650,3 +649,14 @@ const response = await fetch('/api/articles', {
 
 const data = await response.json();
 ```
+
+
+## Security review updates (25 October 2026)
+
+Every API write requires an `Origin` matching the scheme, host and port of `NEXTAUTH_URL`. Requests without Origin are rejected. Proxy host headers do not establish trust. Body size is limited to 1 MiB with a read deadline. Production rate limits use shared Redis; clients must honor `429` and `Retry-After`.
+
+`GET /api/me/export` returns the caller’s profile and section links. Retrieve each link and follow its `next` URL until null for a complete export. Supported sections are articles, comments, claps, bookmarks, following, followers and views; each response contains at most 20 records. Exports include stored article JSON/text and exclude credentials. The caller’s session determines ownership, independent of query parameters. API responses use `private, no-store`.
+
+`DELETE /api/me` erases the authenticated non-admin account after billing cancellation. Administrator accounts require another administrator’s deletion request. Cross-author comment replies survive with their parent reference cleared.
+
+Password changes sign the administrator out and revoke all earlier admin JWTs. Passwords are 12+ characters and no more than 72 UTF-8 bytes. Role changes also revoke the target’s existing admin tokens. New articles use a UUID suffix to avoid concurrent slug collisions.

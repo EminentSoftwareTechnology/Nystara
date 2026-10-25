@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { readBody } from "@/lib/request";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth();
@@ -14,7 +16,7 @@ export async function POST(
   const { id } = await params;
   const article = await prisma.article.findUnique({
     where: { id },
-    select: { authorId: true, published: true },
+    select: { authorId: true, publishedAt: true },
   });
 
   if (!article) {
@@ -24,12 +26,18 @@ export async function POST(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const toggled = !article.published;
+  const text = await readBody(req);
+  let body: unknown;
+  try { body = text ? JSON.parse(text) as unknown : {}; }
+  catch { return NextResponse.json({ error: "Invalid input" }, { status: 400 }); }
+  const parsed = z.object({ published: z.boolean().default(true) }).safeParse(body);
+  if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+  const published = parsed.data.published;
   const updated = await prisma.article.update({
     where: { id },
     data: {
-      published: toggled,
-      publishedAt: toggled ? new Date() : null,
+      published,
+      publishedAt: published ? article.publishedAt ?? new Date() : null,
     },
     select: { id: true, published: true, publishedAt: true },
   });

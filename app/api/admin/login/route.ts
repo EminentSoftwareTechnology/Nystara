@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { audit } from "@/lib/audit";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -30,17 +31,19 @@ export async function POST(req: NextRequest) {
 
   const user = await prisma.user.findUnique({
     where: { email },
-    select: { id: true, email: true, role: true, passwordHash: true },
+    select: { id: true, email: true, role: true, passwordHash: true, sessionVersion: true },
   });
 
   // Always run bcrypt so response time doesn't reveal whether the account exists.
   const matches = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH);
   if (!user || user.role !== "ADMIN" || !user.passwordHash || !matches) {
+    audit("admin_login", "denied");
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
   }
 
-  const token = await createAdminSession({ sub: user.id, email: user.email, role: user.role });
+  const token = await createAdminSession({ sub: user.id, email: user.email, role: user.role, version: user.sessionVersion });
   await setAdminSessionCookie(token);
+  audit("admin_login", "success");
 
   return NextResponse.json({ ok: true });
 }

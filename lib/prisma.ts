@@ -2,8 +2,8 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 function createPrismaClient() {
-  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
-  return new PrismaClient({ adapter, log: ["error"] });
+  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL!, max: 10, connectionTimeoutMillis: 5000, statement_timeout: 10000 });
+  return new PrismaClient({ adapter, errorFormat: "minimal" });
 }
 
 const globalForPrisma = globalThis as unknown as {

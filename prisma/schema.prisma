@@ -22,6 +22,7 @@ model User {
   avatarUrl        String?
   role             UserRole @default(USER)
   passwordHash     String?
+  sessionVersion   Int      @default(0)
   createdAt        DateTime @default(now())
   stripeCustomerId String?  @unique
 
@@ -94,10 +95,12 @@ model Comment {
 
   author  User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
   article Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
-  parent  Comment?  @relation("replies", fields: [parentId], references: [id])
+  parent  Comment?  @relation("replies", fields: [parentId], references: [id], onDelete: SetNull)
   replies Comment[] @relation("replies")
 
   @@index([articleId])
+  @@index([authorId])
+  @@index([parentId])
 }
 
 model Clap {
@@ -146,6 +149,7 @@ model ArticleView {
 
   @@index([visitorId, createdAt])
   @@index([articleId])
+  @@index([createdAt])
 }
 
 model Subscription {
