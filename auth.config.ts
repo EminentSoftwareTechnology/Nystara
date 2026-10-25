@@ -3,9 +3,27 @@ import Google from "next-auth/providers/google";
 import GitHub from "next-auth/providers/github";
 import Resend from "next-auth/providers/resend";
 import Nodemailer from "next-auth/providers/nodemailer";
+import type { EmailConfig } from "next-auth/providers/email";
 import { jwtVerify } from "jose";
 
 const ADMIN_COOKIE = "admin_session";
+
+/**
+ * Sign-in emails link to /verify, which spends the one-time token only when the person presses Continue. Mail
+ * scanners, link previews and repeat clicks all fetch the link, and would otherwise use up the token first.
+ */
+function confirmBeforeSignIn(provider: EmailConfig): EmailConfig {
+  return {
+    ...provider,
+    sendVerificationRequest(params) {
+      const callback = new URL(params.url);
+      const confirm = new URL("/verify", callback.origin);
+      confirm.search = callback.search;
+      confirm.searchParams.set("provider", provider.id);
+      return provider.sendVerificationRequest({ ...params, url: confirm.toString() });
+    },
+  };
+}
 
 async function isValidAdminToken(token: string): Promise<boolean> {
   const secret = process.env.ADMIN_JWT_SECRET;
@@ -35,16 +53,19 @@ export const authConfig = {
       clientId: process.env.GITHUB_CLIENT_ID!,
       clientSecret: process.env.GITHUB_CLIENT_SECRET!,
     }),
-    process.env.NODE_ENV === "production"
-      ? Resend({
-          apiKey: process.env.RESEND_API_KEY!,
-          from: "noreply@nystara.com",
-        })
-      : Nodemailer({
-          server: process.env.EMAIL_SERVER ?? "smtp://127.0.0.1:1035",
-          from: process.env.EMAIL_FROM ?? "Nystara <noreply@nystara.local>",
-        }),
+    confirmBeforeSignIn(
+      process.env.NODE_ENV === "production"
+        ? Resend({
+            apiKey: process.env.RESEND_API_KEY!,
+            from: "noreply@nystara.com",
+          })
+        : Nodemailer({
+            server: process.env.EMAIL_SERVER ?? "smtp://127.0.0.1:1035",
+            from: process.env.EMAIL_FROM ?? "Nystara <noreply@nystara.local>",
+          }),
+    ),
   ],
+  pages: { error: "/sign-in-error" },
   callbacks: {
     async authorized({ auth, request }) {
       const { pathname } = request.nextUrl;
