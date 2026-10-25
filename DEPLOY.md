@@ -145,7 +145,7 @@ docker build -t techscribe:latest .
 ```bash
 docker run -d \
   --name techscribe \
-  -p 3000:3000 \
+  -p 6000:3000 \
   -e DATABASE_URL="postgresql://..." \
   -e NEXTAUTH_URL="https://yourdomain.com" \
   -e NEXTAUTH_SECRET="..." \
@@ -180,7 +180,7 @@ docker compose down
 ### Health Check
 
 ```bash
-curl http://localhost:3000/api/health
+curl http://localhost:6000/api/health
 # Expected: {"status":"ok"}
 ```
 

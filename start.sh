@@ -115,6 +115,6 @@ npm run db:generate
 npm run db:migrate:deploy
 if [ "$MODE" = prod ]; then
   npm run build
-  exec npm run start -- --hostname "${HOST:-127.0.0.1}" --port "${PORT:-3000}"
+  exec npm run start -- --hostname "${HOST:-127.0.0.1}" --port "${PORT:-6000}"
 fi
-exec npm run dev -- --hostname "${HOST:-127.0.0.1}" --port "${PORT:-3000}"
+exec npm run dev -- --hostname "${HOST:-127.0.0.1}" --port "${PORT:-6000}"
