@@ -7,7 +7,7 @@ export function contentSecurityPolicy(nonce: string): string {
     "img-src 'self' data: blob: https:",
     "font-src 'self'",
     "connect-src 'self' https://challenges.cloudflare.com",
-    "frame-src https://challenges.cloudflare.com",
+    "frame-src https://challenges.cloudflare.com https://www.youtube.com https://player.vimeo.com",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",

@@ -51,11 +51,11 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
 
   return (
     <AppShell>
-      <div className="max-w-4xl mx-auto px-6 py-8">
+      <div className="max-w-none w-full mx-auto px-6 py-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-6">Stats</h1>
 
         {/* Tabs */}
-        <div className="flex gap-1 border-b border-gray-200 dark:border-gray-800 mb-8">
+        <div className="flex gap-1 overflow-x-auto border-b border-gray-200 dark:border-gray-800 mb-8">
           <Link
             href="/me/stats"
             className="px-4 py-2.5 text-sm font-medium border-b-2 border-gray-900 dark:border-white text-gray-900 dark:text-white -mb-px"

@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import { Logo } from "@/components/brand/Logo";
 
 type Props = {
   username: string | null;
+  account?: React.ReactNode;
 };
 
 function HomeIcon() {
@@ -90,24 +92,26 @@ const navItems = [
   { href: "/me/security", label: "Security", Icon: SecurityIcon },
 ];
 
-export default function AppSidebar({ username }: Props) {
+export default function AppSidebar({ username, account }: Props) {
   const pathname = usePathname();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-  const profileHref = username ? `/${username}` : "/profile";
+  const profileHref = username ? `/${username}` : "/settings";
 
   const resolvedNavItems = navItems.map((item) =>
     item.href === "/profile" ? { ...item, href: profileHref } : item
   );
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 w-64 flex flex-col bg-white dark:bg-gray-950 border-r border-gray-200 dark:border-gray-800">
+    <aside className="relative z-40 flex w-full shrink-0 flex-col overflow-y-auto border-b border-border bg-page text-foreground md:fixed md:inset-y-0 md:left-0 md:max-h-screen md:w-60 md:border-r md:border-b-0">
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-5 h-14 flex-shrink-0">
         <Logo wordmark="h-8" />
+        <button type="button" className="ml-auto rounded-lg border border-border px-3 py-1.5 text-sm md:hidden" aria-expanded={mobileOpen} aria-controls="workspace-navigation" onClick={() => setMobileOpen(!mobileOpen)}>Navigation</button>
       </div>
 
       {/* Search */}
-      <div className="px-4 pb-3 flex-shrink-0">
+      <div className="hidden px-4 pb-3 flex-shrink-0 md:block">
         <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-900 rounded-full px-3 py-2">
           <SearchIcon />
           <input
@@ -119,7 +123,7 @@ export default function AppSidebar({ username }: Props) {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto px-2 pb-4">
+      <nav id="workspace-navigation" className={`${mobileOpen ? "block" : "hidden"} flex-1 px-2 pb-4 md:block`}>
         <div className="space-y-0.5">
           {resolvedNavItems.map(({ href, label, Icon }) => {
             const active =
@@ -180,6 +184,7 @@ export default function AppSidebar({ username }: Props) {
           </div>
         </div>
       </nav>
+      {account && <div className="border-t border-border p-3">{account}</div>}
     </aside>
   );
 }

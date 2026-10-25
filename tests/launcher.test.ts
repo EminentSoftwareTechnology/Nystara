@@ -21,7 +21,7 @@ test("launcher treats dotenv as data, honors overrides and passes the requested 
     ].join("\n"));
     writeFileSync(join(root, "bin/docker"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
     writeFileSync(join(root, "bin/npm"), `#!/bin/sh\nprintf '%s\\n' "$*" >> '${join(root, "commands")}'\n`, { mode: 0o755 });
-    const env: NodeJS.ProcessEnv = { ...process.env, PATH: `${join(root, "bin")}:${dirname(process.execPath)}:${process.env.PATH}` };
+    const env: NodeJS.ProcessEnv = { ...process.env, CONTAINER_ENGINE: "docker", PATH: `${join(root, "bin")}:${dirname(process.execPath)}:${process.env.PATH}` };
     delete env.PORT;
     const result = spawnSync("bash", ["start.sh", "dev"], { cwd: root, env, encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr);

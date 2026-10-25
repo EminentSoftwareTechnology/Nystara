@@ -60,8 +60,7 @@ export default async function HomePage() {
     }),
   ]);
 
-  const [lead, ...picks] = featuredArticles;
-  const staffPicks = picks.slice(0, 3);
+  const staffPicks = featuredArticles.slice(0, 3);
   const writeHref = session?.user?.id ? "/new-story" : "/signup";
 
   return (
@@ -85,40 +84,6 @@ export default async function HomePage() {
         <p className="mt-3 text-xs text-muted">
           Free to join · 5 member-only stories free every 30 days · No password to remember
         </p>
-
-        <Wall id="hero-wall" variant={0} className="mt-10 px-3 py-8 sm:px-10 sm:py-14">
-          {lead ? (
-            <Link
-              href={storyHref(lead)}
-              className="group mx-auto flex w-full max-w-3xl flex-col gap-3 rounded-2xl border border-border bg-page/95 p-6 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.35)] backdrop-blur sm:p-8"
-            >
-              <span className="text-xs font-medium uppercase tracking-wider text-muted">Featured story</span>
-              <span className="text-2xl font-semibold tracking-tight text-balance group-hover:underline sm:text-3xl">
-                {lead.title}
-              </span>
-              {lead.subtitle && <span className="leading-7 text-muted line-clamp-2">{lead.subtitle}</span>}
-              <span className="mt-2 flex flex-wrap items-center gap-x-2 text-sm text-muted">
-                <span className="font-medium text-foreground">{lead.author.name ?? lead.author.username}</span>
-                <span aria-hidden>·</span>
-                <span>{lead.readTime} min read</span>
-                {lead.publishedAt && (
-                  <>
-                    <span aria-hidden>·</span>
-                    <span>{shortDate(lead.publishedAt)}</span>
-                  </>
-                )}
-              </span>
-            </Link>
-          ) : (
-            <div className="mx-auto flex w-full max-w-3xl flex-col items-start gap-3 rounded-2xl border border-border bg-page/95 p-6 sm:p-8">
-              <span className="text-xs font-medium uppercase tracking-wider text-muted">Be the first</span>
-              <span className="text-2xl font-semibold tracking-tight sm:text-3xl">No stories yet. Yours could be the first.</span>
-              <Link href={writeHref} className={buttonClass("primary", "md", "mt-2")}>
-                Write a story <ArrowRightIcon size={16} />
-              </Link>
-            </div>
-          )}
-        </Wall>
       </section>
 
       {/* Topics */}

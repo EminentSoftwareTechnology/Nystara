@@ -10,9 +10,10 @@ type Props = {
   email: string | null;
   avatarUrl: string | null;
   username: string | null;
+  sidebar?: boolean;
 };
 
-export default function UserMenu({ name, email, avatarUrl, username }: Props) {
+export default function UserMenu({ name, email, avatarUrl, username, sidebar = false }: Props) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -23,7 +24,9 @@ export default function UserMenu({ name, email, avatarUrl, username }: Props) {
       }
     }
     document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
+    document.addEventListener("keydown", escape);
+    return () => { document.removeEventListener("mousedown", handler); document.removeEventListener("keydown", escape); };
   }, []);
 
   const initials = (name ?? email ?? "U")[0].toUpperCase();
@@ -32,9 +35,11 @@ export default function UserMenu({ name, email, avatarUrl, username }: Props) {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-9 h-9 rounded-full overflow-hidden ring-2 ring-transparent hover:ring-gray-300 dark:hover:ring-gray-600 transition-all"
+        className={sidebar ? "flex w-full items-center gap-3 rounded-lg p-2 text-left hover:bg-surface" : "w-9 h-9 rounded-full overflow-hidden ring-2 ring-transparent hover:ring-gray-300 dark:hover:ring-gray-600 transition-all"}
         aria-label="User menu"
+        aria-expanded={open}
       >
+        <span className="block h-9 w-9 shrink-0 overflow-hidden rounded-full">
         {avatarUrl ? (
           <Image
             src={avatarUrl}
@@ -48,10 +53,12 @@ export default function UserMenu({ name, email, avatarUrl, username }: Props) {
             {initials}
           </div>
         )}
+        </span>
+        {sidebar && <><span className="min-w-0 flex-1 truncate text-sm font-medium">{name ?? username ?? "Account"}</span><span aria-hidden>{open ? "−" : "+"}</span></>}
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl py-2 z-50">
+        <div className={sidebar ? "mt-2 rounded-xl border border-border bg-page py-2 text-foreground" : "absolute right-0 mt-2 w-72 bg-page border border-border rounded-xl shadow-xl py-2 z-50"}>
           {/* Profile row */}
           <div className="flex items-center gap-3 px-4 py-3">
             <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
@@ -94,7 +101,9 @@ export default function UserMenu({ name, email, avatarUrl, username }: Props) {
           <Link href="/settings" onClick={() => setOpen(false)} className="flex items-center px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors">
             Settings
           </Link>
-          <Link href="/help" onClick={() => setOpen(false)} className="flex items-center px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors">
+          <Link href="/me/security" onClick={() => setOpen(false)} className="flex items-center px-4 py-2.5 text-sm hover:bg-surface">Security</Link>
+          <Link href="/me/audience" onClick={() => setOpen(false)} className="flex items-center px-4 py-2.5 text-sm hover:bg-surface">Audience</Link>
+          <Link href="/me/help" onClick={() => setOpen(false)} className="flex items-center px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors">
             Help
           </Link>
 

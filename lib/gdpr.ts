@@ -1,5 +1,6 @@
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
+import { eraseUserImages } from "@/lib/r2";
 
 // GDPR Art. 17 erasure. Owned rows (articles, comments, claps, bookmarks,
 // follows, sessions, accounts, subscription) cascade at the DB level.
@@ -14,6 +15,7 @@ export async function eraseUser(userId: string, email: string): Promise<void> {
     await stripe.subscriptions.cancel(sub.stripeSubscriptionId);
   }
 
+  await eraseUserImages(userId);
   await prisma.$transaction([
     prisma.verificationToken.deleteMany({ where: { identifier: email } }),
     prisma.articleView.deleteMany({ where: { visitorId: userId } }),

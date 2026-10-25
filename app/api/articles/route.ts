@@ -5,7 +5,8 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generateUniqueSlug } from "@/lib/slug";
 import { MAX_CONTENT_CHARS, readJson } from "@/lib/request";
-import { articleContent } from "@/lib/article-schema";
+import { articleContent, coverImageUrl } from "@/lib/article-schema";
+import { documentText, storyNode } from "@/lib/story-document";
 
 const PAGE_SIZE = 20;
 
@@ -57,6 +58,7 @@ function normalizeTagSlug(raw: string): string {
 const createSchema = z.object({
   title: z.string().min(1).max(250),
   subtitle: z.string().max(500).optional(),
+  coverImage: coverImageUrl.nullable().optional(),
   content: articleContent,
   contentText: z.string().max(MAX_CONTENT_CHARS),
   memberOnly: z.boolean().default(false),
@@ -85,8 +87,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { title, subtitle, content, contentText, memberOnly, tagSlugs } =
+  const { title, subtitle, content, coverImage, memberOnly, tagSlugs } =
     parsed.data;
+  const doc = storyNode.safeParse(content);
+  const contentText = doc.success && doc.data.content ? documentText(doc.data) : parsed.data.contentText;
 
   const wordCount = contentText.trim().split(/\s+/).filter(Boolean).length;
   const readTime = Math.max(1, Math.ceil(wordCount / 200));
@@ -97,6 +101,7 @@ export async function POST(req: NextRequest) {
       slug,
       title,
       subtitle,
+      coverImage,
       content: content as Prisma.InputJsonValue,
       contentText,
       readTime,

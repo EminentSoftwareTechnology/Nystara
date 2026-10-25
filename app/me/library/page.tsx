@@ -32,7 +32,7 @@ export default async function LibraryPage() {
 
   return (
     <AppShell>
-      <div className="max-w-4xl mx-auto px-6 py-8">
+      <div className="max-w-none w-full mx-auto px-6 py-8">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Your library</h1>
           <button className="px-4 py-2 rounded-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm font-semibold hover:bg-gray-700 dark:hover:bg-gray-200 transition-colors">
@@ -41,7 +41,7 @@ export default async function LibraryPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 border-b border-gray-200 dark:border-gray-800 mb-8">
+        <div className="flex gap-1 overflow-x-auto border-b border-gray-200 dark:border-gray-800 mb-8">
           {["Your lists", "Saved lists", "Highlights", "Reading history", "Responses"].map((tab, i) => (
             <button
               key={tab}
