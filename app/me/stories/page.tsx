@@ -27,6 +27,7 @@ export default async function StoriesPage({ searchParams }: { searchParams: Prom
       publishedAt: true,
       updatedAt: true,
       readTime: true,
+      author: { select: { username: true } },
       _count: { select: { claps: true, comments: true, views: true } },
     },
   });
@@ -38,7 +39,7 @@ export default async function StoriesPage({ searchParams }: { searchParams: Prom
 
   return (
     <AppShell>
-      <div className="max-w-4xl mx-auto px-6 py-8">
+      <div className="max-w-none w-full mx-auto px-6 py-8">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Stories</h1>
           <Link
@@ -50,7 +51,7 @@ export default async function StoriesPage({ searchParams }: { searchParams: Prom
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 border-b border-gray-200 dark:border-gray-800 mb-8">
+        <div className="flex gap-1 overflow-x-auto border-b border-gray-200 dark:border-gray-800 mb-8">
           {["Drafts", "Scheduled", "Published", "Unlisted", "Submissions"].map((tab, i) => (
             <button
               key={tab}
@@ -122,7 +123,7 @@ export default async function StoriesPage({ searchParams }: { searchParams: Prom
                   <div key={article.id} className="py-5 flex items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
                       <Link
-                        href={`/${article.slug}`}
+                        href={article.author.username ? `/${article.author.username}/${article.slug}` : `/editor/${article.id}`}
                         className="text-base font-semibold text-gray-900 dark:text-white hover:underline line-clamp-1"
                       >
                         {article.title}

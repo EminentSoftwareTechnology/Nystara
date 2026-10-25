@@ -4,6 +4,7 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { checkPaywallAccess, extractExcerpt } from "@/lib/paywall";
+import StoryContent from "@/components/article/StoryContent";
 
 type Props = {
   params: Promise<{ username: string; slug: string }>;
@@ -26,6 +27,7 @@ export default async function ArticlePage({ params }: Props) {
       subtitle: true,
       coverImage: true,
       contentText: true,
+      content: true,
       readTime: true,
       memberOnly: true,
       published: true,
@@ -128,9 +130,7 @@ export default async function ArticlePage({ params }: Props) {
         </div>
       )}
 
-      <div className="prose max-w-none">
-        <p className="whitespace-pre-wrap leading-relaxed wrap-anywhere">{displayText}</p>
-      </div>
+      <StoryContent content={paywalled ? null : article.content} text={displayText} />
 
       {paywalled && (
         <div className="mt-10 py-10 border-t text-center">

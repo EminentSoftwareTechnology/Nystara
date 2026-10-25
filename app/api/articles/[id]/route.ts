@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { MAX_CONTENT_CHARS, readJson } from "@/lib/request";
 import { articleContent, coverImageUrl } from "@/lib/article-schema";
+import { documentText, storyNode } from "@/lib/story-document";
 
 const updateSchema = z.object({
   title: z.string().min(1).max(250).optional(),
@@ -43,7 +44,9 @@ export async function PATCH(
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { contentText, content, ...rest } = parsed.data;
+  const { contentText: suppliedText, content, ...rest } = parsed.data;
+  const doc = storyNode.safeParse(content);
+  const contentText = doc.success && doc.data.content ? documentText(doc.data) : suppliedText;
   const contentUpdate =
     content !== undefined
       ? { content: content as Prisma.InputJsonValue }

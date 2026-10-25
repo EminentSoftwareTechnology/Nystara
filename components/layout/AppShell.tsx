@@ -49,10 +49,10 @@ export default async function AppShell({ children, requireAuth = true }: Props) 
   }
 
   return (
-    <div className="flex min-h-screen bg-white dark:bg-gray-950">
-      <AppSidebar username={dbUser?.username ?? null} />
+    <div className="flex min-h-screen flex-col bg-page text-foreground md:flex-row">
+      <AppSidebar username={dbUser?.username ?? null} account={session?.user ? <UserMenu sidebar name={dbUser?.name ?? session.user.name ?? null} email={session.user.email ?? null} avatarUrl={dbUser?.avatarUrl ?? session.user.image ?? null} username={dbUser?.username ?? null} /> : null} />
 
-      <div className="ml-64 flex-1 flex flex-col min-w-0">
+      <div className="flex min-w-0 flex-1 flex-col md:ml-60">
         {/* Top right controls */}
         <header className="sticky top-0 z-30 flex items-center justify-end gap-3 px-6 py-3 bg-white/90 dark:bg-gray-950/90 backdrop-blur-sm">
           {session?.user ? (
@@ -70,12 +70,6 @@ export default async function AppShell({ children, requireAuth = true }: Props) 
               >
                 <BellIcon />
               </button>
-              <UserMenu
-                name={dbUser?.name ?? session.user.name ?? null}
-                email={session.user.email ?? null}
-                avatarUrl={dbUser?.avatarUrl ?? session.user.image ?? null}
-                username={dbUser?.username ?? null}
-              />
             </>
           ) : (
             <Link

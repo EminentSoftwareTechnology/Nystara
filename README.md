@@ -2,7 +2,8 @@
 
 A Medium-style technical publishing platform. It currently includes freemium
 reading, Google/GitHub/magic-link auth, basic story publishing, admin tools,
-and server-side paywall enforcement.
+and server-side paywall enforcement. The writing desk supports document formatting,
+saved drafts, R2 image uploads, video previews, and subscription-gated AI editing.
 
 ## 📚 Documentation
 
@@ -91,7 +92,7 @@ Browser → Next.js dynamic rendering (private, no-store) → Prisma → Postgre
 | Editor        | Basic contenteditable story editor              |
 | Payments      | Stripe SDK installed; subscription routes TODO  |
 | Email         | Resend + React Email                            |
-| Image storage | Vercel Blob                                     |
+| Image storage | Cloudflare R2 (story images)                     |
 | Validation    | Zod                                             |
 | State         | Zustand (editor UI only)                        |
 
@@ -241,6 +242,58 @@ Soft paywall — 5 member-only articles per `visitorId` per 30-day rolling windo
 Stripe dependencies are installed, but checkout, portal, and webhook routes are
 not implemented yet. When subscriptions are added, verify Stripe signatures and
 deduplicate webhook events before updating `Subscription` rows.
+
+## Writing desk and media
+
+`/new-story` creates a story; `/editor/[id]` reopens an owned draft. Save draft
+persists the structured document, plain-text search/excerpt content, subtitle,
+cover, and member-only setting. Published pages render document nodes through a
+fixed React renderer; legacy plain-text stories remain readable. Save before
+leaving the editor. There is no automatic save or cross-device conflict resolution.
+
+### Cloudflare R2
+
+Set `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`,
+and `R2_PUBLIC_URL` in the server environment. Create an R2 bucket and a
+bucket-scoped Object Read & Write token. Copy the account ID and public HTTPS
+custom-domain URL from Cloudflare; do not expose access keys in `NEXT_PUBLIC_*`
+variables. Existing Vercel image URLs remain readable.
+
+The app sends images through authenticated `POST /api/media` to R2 using the S3
+SDK. JPEG, PNG and WebP files are limited to 600 KB and checked against their
+file signatures. Each user can upload 50 images per day. Browser-to-R2 CORS is
+unnecessary because uploads go through the application server.
+
+Objects use `stories/{userId}/{randomId}.{extension}`. Uploaded images are public,
+including images inserted into unpublished drafts; do not upload confidential
+media. Removing an image from a story does not delete its object. Account erasure deletes the user’s image prefix before removing database records;
+storage failures stop erasure so it can be retried. Public caches may retain images
+for up to an hour; purge the configured CDN when immediate removal is required.
+Orphan cleanup for removed story images is not automated.
+
+Video links support public YouTube and Vimeo videos. The server requests metadata
+only from their fixed oEmbed endpoints, rejects redirects, and validates thumbnail
+hosts. Readers see a thumbnail and explicitly load the player on click. Providers
+may restrict embedding or remove videos later.
+
+### Premium AI editor
+
+Set `OPENAI_API_KEY` and `OPENAI_MODEL` to a Responses API model available to your
+OpenAI project. `POST /api/ai/editor` checks the database subscription on every
+request: only ACTIVE or TRIALING subscriptions with an unexpired period qualify.
+Checkout and subscription provisioning remain unimplemented; the editor never
+grants membership based on client input.
+
+Actions include polish, shorten, expand, outline, title suggestions, and editorial
+feedback. The user explicitly sends a selection or draft of up to 12,000 characters
+to OpenAI and reviews suggestions before insertion. Requests use `store: false`,
+a 45-second timeout, and at most 2,000 output tokens. Each user gets 30 requests
+per day through the shared Redis limiter; attempts count even when upstream fails.
+Production requires Redis and fails closed when the limiter is unavailable.
+Provider billing and retention policies still apply. Suggestions are not fact-checked.
+
+With missing service credentials, upload and AI routes return 503 and the editor
+keeps the story intact. Live provider verification requires configured credentials.
 
 ---
 

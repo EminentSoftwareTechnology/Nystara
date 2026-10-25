@@ -1,9 +1,11 @@
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { auth } from "@/lib/auth";
+import AppShell from "@/components/layout/AppShell";
 
 export default async function PublicLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
+  if (session?.user?.id) return <AppShell>{children}</AppShell>;
   return (
     <>
       <a

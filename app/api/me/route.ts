@@ -2,6 +2,17 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { eraseUser } from "@/lib/gdpr";
+import { z } from "zod";
+import { readJson } from "@/lib/request";
+
+export async function PATCH(req: Request) {
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const input = z.object({ name: z.string().trim().max(100), bio: z.string().trim().max(500) }).safeParse(await readJson(req));
+  if (!input.success) return NextResponse.json({ error: "Invalid profile" }, { status: 400 });
+  await prisma.user.update({ where: { id: session.user.id }, data: { name: input.data.name, bio: input.data.bio } });
+  return NextResponse.json({ saved: true });
+}
 
 // Self-service account deletion.
 export async function DELETE() {

@@ -53,7 +53,7 @@ export default async function ProfilePage({ params }: Props) {
 
   return (
     <AppShell requireAuth={false}>
-      <div className="max-w-5xl mx-auto px-6 py-8 flex gap-12">
+      <div className="max-w-none w-full mx-auto px-6 py-8 flex gap-12">
         {/* Main content */}
         <div className="flex-1 min-w-0">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
@@ -61,7 +61,7 @@ export default async function ProfilePage({ params }: Props) {
           </h1>
 
           {/* Tabs */}
-          <div className="flex gap-1 border-b border-gray-200 dark:border-gray-800 mt-4 mb-6">
+          <div className="flex gap-1 overflow-x-auto border-b border-gray-200 dark:border-gray-800 mt-4 mb-6">
             {[
               { label: "Home", active: true },
               { label: "Activity", badge: true },
