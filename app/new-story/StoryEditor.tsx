@@ -10,11 +10,12 @@ import TextAlign from "@tiptap/extension-text-align";
 import ImageExtension from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
 import UserMenu from "@/components/layout/UserMenu";
+import MobileNav from "@/components/layout/MobileNav";
 import { Logo } from "@/components/brand/Logo";
 import { VideoNode } from "@/components/editor/video-extension";
 import Ribbon from "@/components/editor/Ribbon";
 import { uploadImage } from "@/components/editor/upload-image";
-import { safeLink } from "@/lib/story-document";
+import { dropUnsupportedTextStyles, safeLink } from "@/lib/story-document";
 import type { StoryTheme } from "@/lib/story-theme";
 import {
   type LocalDraft,
@@ -177,7 +178,7 @@ export default function StoryEditor({
       const payload = {
         title: title.trim(),
         subtitle,
-        content: editor.getJSON(),
+        content: dropUnsupportedTextStyles(editor.getJSON()),
         contentText: editor.getText(),
         memberOnly,
         coverImage,
@@ -302,7 +303,7 @@ export default function StoryEditor({
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-background text-foreground touch:pb-[calc(4.5rem+env(safe-area-inset-bottom))]">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-page px-4 py-4 sm:px-8">
         <div className="flex items-center gap-4">
           <Logo wordmark="h-8" />
@@ -561,6 +562,7 @@ export default function StoryEditor({
           </section>
         </div>
       </main>
+      <MobileNav user={{ name, email, avatarUrl, username }} />
     </div>
   );
 }
