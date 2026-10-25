@@ -30,26 +30,26 @@
 
 <!-- Describe how you tested your changes -->
 
-### Manual Testing
+### Automated checks
 
-- [ ] Tested in development environment
-- [ ] Tested all affected features
-- [ ] Tested edge cases
-- [ ] Verified error handling
+- [ ] `npm run lint`
+- [ ] `npm run typecheck`
+- [ ] `npm test`
+- [ ] `npm run test:integration` (when touching auth, the paywall, export/erasure, the proxy or migrations)
 
-### Functionality Checks
+### Manual checks
 
-- [ ] UI is responsive (mobile and desktop)
+- [ ] Tested the affected flows in `./start.sh`
+- [ ] Phone and desktop widths; light, dark and sand themes
 - [ ] No console errors or warnings
-- [ ] Authentication/authorization works correctly
-- [ ] Database operations work as expected
+- [ ] Sign-in, account setup and permissions still behave as expected
 
-### Database Changes
+### Database changes
 
-- [ ] Migration tested on empty database
-- [ ] Migration tested on existing database
+- [ ] Migration included and applies to an empty and an existing database
 - [ ] No data loss on existing records
-- [ ] Indexes added for frequently queried fields
+- [ ] New user-owned data cascades on user delete and is included in `/api/me/export`
+- [ ] Indexes added for new foreign keys and frequent filters
 
 ## Screenshots
 
@@ -57,17 +57,14 @@
 
 ## Checklist
 
-- [ ] My code follows the project's style guidelines
 - [ ] I have performed a self-review of my code
-- [ ] I have commented my code, particularly in hard-to-understand areas
-- [ ] I have made corresponding changes to the documentation
-- [ ] My changes generate no new warnings or errors
-- [ ] I have added tests that prove my fix is effective or that my feature works (if applicable)
-- [ ] New and existing tests pass locally with my changes
-- [ ] Any dependent changes have been merged and published
-- [ ] I have checked my code and corrected any misspellings
-- [ ] Database migrations are included (if schema changed)
-- [ ] Environment variables are documented in .env.example (if new vars added)
+- [ ] The change is limited to what the PR describes
+- [ ] Tests cover the new behaviour or the fixed bug
+- [ ] No secrets, `.env` files or real user data are committed
+- [ ] `API.md` updated for new or changed endpoints
+- [ ] `SECURITY.md` updated for new or changed security controls
+- [ ] `.env.example` and `DEPLOY.md` updated for new environment variables
+- [ ] `CHANGELOG.md` updated under `[Unreleased]`
 
 ## Additional Notes
 

@@ -1,310 +1,236 @@
 # Nystara
 
-A Medium-style technical publishing platform. It currently includes freemium
-reading, Google/GitHub/magic-link auth, basic story publishing, admin tools,
-and server-side paywall enforcement. The writing desk supports document formatting,
-saved drafts, R2 image uploads, video previews, and subscription-gated AI editing.
+Nystara is a long-form blogging platform built with Next.js 16. Readers browse
+and read stories, comment, react and rate. Writers draft in a Word-style editor
+with document themes, image uploads and video embeds, and can mark stories as
+members-only behind a server-side soft paywall. Accounts sign in with Google,
+GitHub, an email link or a passkey, and must set up a second factor. A separate
+admin console manages users and articles.
 
-## 📚 Documentation
+## Documentation
 
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** — High-level and low-level design
-- **[API.md](API.md)** — Complete API reference
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** — How to contribute
-- **[SECURITY.md](SECURITY.md)** — Security policy and best practices
-- **[DEPLOY.md](DEPLOY.md)** — Deployment guide for all platforms
-- **[CHANGELOG.md](CHANGELOG.md)** — Version history and changes
+| Document | What it covers |
+| --- | --- |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | System design, request pipeline, data model and how each feature works |
+| [API.md](API.md) | Every HTTP endpoint, with request/response shapes, limits and errors |
+| [DEPLOY.md](DEPLOY.md) | Production deployment (Railway, Docker), environment variables, operations |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Local setup, coding standards, tests and the pull request process |
+| [SECURITY.md](SECURITY.md) | Security policy, implemented controls and operator requirements |
+| [SECURITY_REVIEW.md](SECURITY_REVIEW.md) | The October 2026 security review and later addenda |
+| [CHANGELOG.md](CHANGELOG.md) | What changed, release by release |
 
----
+## What is implemented
 
-## 📋 Table of Contents
+### Reading
 
-- [Architecture](#architecture)
-- [Tech Stack](#tech-stack)
-- [Local Development](#local-development)
-- [Docker](#docker)
-- [Railway Deployment](#railway-deployment)
-- [Database](#database)
-- [API Routes](#api-routes)
-- [Paywall](#paywall)
-- [Cost Estimate](#cost-at--10k-mau)
+- **Home feed** (`/`): latest and most-clapped stories in tabs, plus the top tags.
+- **Article page** (`/{username}/{slug}`): hero with cover, author, read time and
+  tags; the story rendered from its structured document; share bar; like/dislike
+  and 1–5 star rating; threaded comments (one reply level); "What's trending"
+  and "Most viewed today" sidebar; back-to-top button. Open Graph and Twitter
+  card metadata are generated per story.
+- **Author profile** (`/{username}`): bio, follower counts and published stories.
+- **Soft paywall**: members-only stories are free for 5 reads per reader per
+  rolling 30 days. After that, the server sends a 300-word excerpt only. The full
+  body never reaches the browser.
+- **Guest participation**: readers without an account can comment (with a name
+  and a Turnstile check) and vote, identified by a signed 30-day reader cookie.
 
----
+### Writing
 
-## Architecture
+- **Story editor** (`/new-story`, `/editor/{id}`): Tiptap editor with a ribbon
+  (Home / Insert / Design tabs), a styles gallery, fonts, sizes, line spacing,
+  alignment, lists, quotes, code blocks, links and dividers.
+- **Document themes**: six themes (Classic, Modern, Editorial, Elegant, Bold,
+  Technical), saved per story and applied on the published page.
+- **Images**: inline images and covers uploaded to Cloudflare R2. The browser
+  shrinks large photos first; the server checks file signatures, optionally
+  scans with ClamAV, strips metadata, resizes and re-encodes to WebP.
+- **Video**: YouTube and Vimeo links become click-to-load previews.
+- **Drafts**: explicit "Save draft" to the server, plus a copy in the browser's
+  local storage so a closed tab or crash does not lose writing.
+- **AI editor** (`/ai-editor`): polish, shorten, expand, outline, title ideas and
+  editorial feedback through the OpenAI Responses API. Premium members only, 30
+  requests per day. Suggestions can be copied or appended to the current draft.
+- **Writer pages**: Stories, Stats, Audience, Library, Following and Find writers
+  under `/me/*`.
 
-```text
-┌──────────────────────────────────────────────────────────────┐
-│                        Browser                               │
-│         Next.js 16 · React 19 · TypeScript · Tailwind 4     │
-└─────────────────────────┬────────────────────────────────────┘
-                          │ HTTPS
-                          ▼
-┌──────────────────────────────────────────────────────────────┐
-│              Next.js App Router (SSR + API routes)           │
-│                                                              │
-│  Pages (SSR/SSG)          API Routes         Middleware      │
-│  ├── / (feed)             ├── /api/auth      └── auth check  │
-│  ├── /[user]/[slug]       ├── /api/articles      + paywall   │
-│  ├── /[username]          ├── /api/admin                     │
-│  ├── /new-story           ├── /api/articles                  │
-│  └── /me/*                ├── /api/auth                      │
-│                           └── /api/health                    │
-└────────┬──────────────────────────┬─────────────────────────┘
-         │                          │
-   ┌─────▼──────┐           ┌───────▼──────────────┐
-   │ Vercel Blob│           │   External SaaS       │
-   │ (images)   │           │   Resend  (email)     │
-   └────────────┘           │   Stripe  (payments)  │
-                            │   Google/GitHub OAuth │
-                            └───────────────────────┘
-                                       │
-                       ┌───────────────▼───────────────┐
-                       │      PostgreSQL 16             │
-                       │  (Railway managed / Docker)    │
-                       └───────────────────────────────┘
-```
+### Accounts and security
 
-### Request path — article read
+- Sign-in with Google, GitHub, an email link (Resend in production, Mailpit
+  locally) or a passkey. Sign-in and sign-up are separate flows.
+- Email links open a confirmation page first, so mail scanners cannot use up the
+  one-time token.
+- **Required account setup**: every reader account must have a display name and
+  at least one second factor (passkey or authenticator app) before it can use the
+  app. Ten single-use recovery codes are issued with the first factor.
+- Security settings at `/me/security`; profile and appearance at `/settings`.
+- Data export (`GET /api/me/export`) and self-service account deletion
+  (`DELETE /api/me`).
+- Hardened request pipeline: same-origin checks on every API write, per-IP rate
+  limits backed by Redis, a 1 MiB streamed body limit, a per-request CSP nonce and
+  `private, no-store` caching. Details are in [SECURITY.md](SECURITY.md).
 
-```text
-Browser → Next.js dynamic rendering (private, no-store) → Prisma → PostgreSQL
-       → server-side article access check:
-            article.memberOnly = false  → render full content
-            article.memberOnly = true
-              └── valid session + ACTIVE subscription → render full
-              └── free quota available (<5 views/30d) → render full + record view
-              └── quota exceeded → render ~300-word excerpt + paywall CTA
-                                   (full content never reaches the client)
-```
+### Admin console
 
----
+`/admin` has its own email-and-password sign-in (with optional passkey or
+authenticator second factor, or passkey-only sign-in). It includes a dashboard,
+user management (search, role changes, erasure), article management (create,
+edit, publish, delete), profile/password, security and appearance settings.
 
-## Tech Stack
+### Interface
 
-| Layer         | Choice                                          |
-| ------------- | ----------------------------------------------- |
-| Framework     | Next.js 16 (App Router)                         |
-| Language      | TypeScript (strict, no `any`)                   |
-| Styling       | Tailwind CSS 4                                  |
-| ORM           | Prisma 7 + `@prisma/adapter-pg`                 |
-| Database      | PostgreSQL 16                                   |
-| Auth          | NextAuth v5 — Google, GitHub, Resend magic-link |
-| Editor        | Basic contenteditable story editor              |
-| Payments      | Stripe SDK installed; subscription routes TODO  |
-| Email         | Resend + React Email                            |
-| Image storage | Cloudflare R2 (story images)                     |
-| Validation    | Zod                                             |
-| State         | Zustand (editor UI only)                        |
+- App shell with a desktop sidebar, and a bottom tab bar plus "More" sheet on
+  touch devices; installable as a web app (manifest included).
+- Light, dark, sand and system themes, remembered in a cookie.
+- Public pages: About, Features, Why blog, Contact, Privacy, Terms, Cookies.
 
----
+## Not implemented yet
 
-## Local Development
+These appear in the schema or UI but have no working server path. Do not
+advertise them as features.
 
-Use Node 22.12+ and Podman with `podman-compose` (or Docker Compose v2). The launcher prefers Podman when both have a Compose provider; set `CONTAINER_ENGINE=docker` to select Docker.
+- **Billing**: Stripe is installed and `Subscription` rows are honoured, but there
+  is no checkout, customer portal or webhook. Premium access is granted only by
+  writing a `Subscription` row directly.
+- **Claps, bookmarks and follows**: shown in feeds, stats and the library, but no
+  API creates them. Only the demo seeder fills them. The profile **Follow** button
+  and the header **Notifications** bell do nothing.
+- **Tag pages**: tag chips link to `/tag/{slug}`, which has no page yet (404).
+- **Search**: the `search_vector` full-text column and GIN index exist; there is
+  no search endpoint or UI.
+- **Email notifications and digests**, OG image generation, sitemap and RSS.
+- **Server autosave**: drafts save to the server only when the writer saves.
 
-```bash
-./start.sh
-```
+## Tech stack
 
-The launcher installs locked dependencies, creates a private `.env.local` with random signing secrets if no env file exists, starts loopback-only PostgreSQL, Redis, and Mailpit, generates Prisma, applies migrations, and starts development on port 6100. Local sign-in email is captured by Mailpit at [http://localhost:8035](http://localhost:8035); its SMTP server listens on `127.0.0.1:1035`. It parses env files as dotenv data. Existing process variables override env files; `.env.local` overrides `.env`. It does not seed or reset your database.
+| Layer | Choice |
+| --- | --- |
+| Framework | Next.js 16 (App Router, `proxy.ts`, standalone output), React 19 |
+| Language | TypeScript (strict, no `any`) |
+| Styling | Tailwind CSS 4, CSS custom properties for site and story themes |
+| Database | PostgreSQL 16 through Prisma 7 with `@prisma/adapter-pg` |
+| Rate limiting | Redis 7 (required in production) |
+| Auth | Auth.js (NextAuth v5) database sessions; WebAuthn via SimpleWebAuthn; TOTP via `otpauth` |
+| Admin auth | Separate HS256 JWT cookie (`jose`) and bcrypt passwords |
+| Editor | Tiptap 3 (StarterKit, text align, text style, image, placeholder, custom video node) |
+| Images | Cloudflare R2 through the AWS S3 SDK; `sharp` for re-encoding; optional ClamAV |
+| Email | Resend (production), Nodemailer to Mailpit (development) |
+| Bot protection | Cloudflare Turnstile |
+| AI | OpenAI Responses API (direct `fetch`, no SDK) |
+| Validation | Zod 4 |
+| Tests | Node test runner with `tsx`; Playwright for browser checks |
 
-Configure Google/GitHub credentials to use those sign-in flows. Development magic-link emails are captured locally; production uses Resend. Development can use Turnstile test keys; production rejects them. Seed the first administrator only after setting `ADMIN_EMAIL` and `ADMIN_PASSWORD` (12+ characters, at most 72 UTF-8 bytes) in the environment:
+## Quick start
 
-```bash
-npm run db:seed
-PORT=6001 ./start.sh dev
-./start.sh prod
-./start.sh --help
-```
-
-For demo content, `npm run db:seed:demo` creates 50 users (`user1@gmail.com` … `user50@gmail.com`, usernames `user1` … `user50`) plus 10 published stories with tags, claps, comments, bookmarks and follows. Sign in as any of them with the magic link from Mailpit. It is safe to re-run and refuses to run when `NODE_ENV=production`.
-
-`HOST` defaults to `127.0.0.1`. Set it explicitly if LAN access is required. If you override `PORT`, set `NEXTAUTH_URL` to the same local origin so same-origin write checks continue to pass. Remote databases require `ALLOW_REMOTE_MIGRATE=1`; startup never resets or seeds them automatically. `prod` builds locally and requires production CAPTCHA keys and Redis. Keep development infrastructure credentials for local use only.
-
-## Docker
-
-```bash
-./start.sh docker
-```
-
-This full Compose stack runs with the selected Docker or Podman engine. Set `POSTGRES_PASSWORD` to a random hex value, `NEXTAUTH_URL` to the browser-visible origin, strong signing secrets, and real Turnstile site/secret keys. The site key is a public build argument; database URLs and signing secrets are runtime variables. Existing database volumes retain their original password; changing an env value does not rotate an existing database credential.
-
-For an existing database or hosted deployment, use the runtime variables in [.env.example](.env.example). Production requires `REDIS_URL` for shared rate limits. Leave `TRUST_PROXY_IP=0` until you verify that ingress appends/overwrites the forwarding header and blocks direct app access. With it disabled, clients share conservative aggregate buckets. Use a dedicated limiter Redis with bounded memory and `noeviction`, so eviction cannot reset blocked buckets.
-
-The container runs as a non-root user and applies migrations before serving. Schedule `npm run db:cleanup` daily from an environment with development tools installed to delete reading records older than 30 days and expired sessions/tokens. Reading metrics reflect retained records. Retention cleanup is not automatically scheduled by this repository.
-
-See [SECURITY_REVIEW.md](SECURITY_REVIEW.md) for findings, validation and deployment limits.
-
-### Image layers
-
-| Stage     | Purpose                                                      |
-| --------- | ------------------------------------------------------------ |
-| `deps`    | Production `node_modules` only                               |
-| `builder` | Full install → `prisma generate` → `next build` (standalone) |
-| `runner`  | Copies `.next/standalone` + static assets — no build tooling |
-
-The final image uses Next.js standalone output plus production dependencies, so
-the Prisma CLI is available for startup migrations without a network download.
-
----
-
-## Railway Deployment
-
-### One-time setup
-
-1. Create a new Railway project.
-2. Add a **PostgreSQL** plugin — Railway injects `DATABASE_URL` automatically.
-3. Add a new **service** from your GitHub repo.
-4. Railway detects `Dockerfile` via `railway.toml` and uses it to build.
-
-### Environment variables (Railway service settings)
-
-```text
-NEXTAUTH_URL          https://your-app.up.railway.app
-NEXTAUTH_SECRET       <openssl rand -base64 32>
-GOOGLE_CLIENT_ID
-GOOGLE_CLIENT_SECRET
-GITHUB_CLIENT_ID
-GITHUB_CLIENT_SECRET
-RESEND_API_KEY
-STRIPE_SECRET_KEY
-STRIPE_WEBHOOK_SECRET
-BLOB_READ_WRITE_TOKEN
-```
-
-`DATABASE_URL` is injected automatically from the linked Postgres plugin — do not set it manually.
-
-### Deploy
-
-Push to `main`. Railway builds via the `Dockerfile`, runs `prisma migrate deploy` on startup, then starts `node server.js`.
-
-Health check endpoint: `GET /api/health` → `{ "status": "ok" }`
-
----
-
-## Database
-
-### Scripts
+Requirements: Node 22.12+, and Podman (with `podman compose` or `podman-compose`)
+or Docker Compose v2.
 
 ```bash
-npm run db:migrate        # create + apply a new migration (dev)
-npm run db:migrate:deploy # apply pending migrations (CI/production)
-npm run db:generate       # regenerate Prisma client without migrating
-npm run db:studio         # open Prisma Studio at localhost:5555
+./start.sh            # same as ./start.sh dev
 ```
 
-### Schema overview
+The launcher:
+
+1. Installs locked dependencies when needed.
+2. Creates `.env.local` from `.env.example` with random secrets if no env file
+   exists (file mode 600).
+3. Starts local PostgreSQL, Redis and Mailpit (loopback only).
+4. Generates the Prisma client and applies migrations. It never resets or seeds.
+5. Starts Next.js on <http://localhost:6100> and opens the browser.
+
+| Service | Local address |
+| --- | --- |
+| App | `http://localhost:6100` |
+| PostgreSQL | `127.0.0.1:5442` (user/password/db `nystara`) |
+| Redis | `127.0.0.1:6389` |
+| Mailpit inbox | <http://localhost:8035> (SMTP on `127.0.0.1:1035`) |
+
+Other modes: `./start.sh prod` (local production build; needs real Turnstile
+keys, Redis and `MFA_ENCRYPTION_KEY`), `./start.sh docker` (full Compose stack),
+`./start.sh --help`. Set `CONTAINER_ENGINE=docker` to prefer Docker over Podman.
+
+Notes:
+
+- Sign in with the email link: the message arrives in Mailpit. In development,
+  Turnstile is skipped when no secret key is set.
+- `HOST` defaults to `127.0.0.1`. If you change `PORT`, also set `NEXTAUTH_URL` to
+  the same origin, or API writes fail the same-origin check.
+- Remote databases need `ALLOW_REMOTE_MIGRATE=1`.
+- `dev.sh` is an older helper that uses ports 6000/5432; prefer `start.sh`.
+
+### Seed data
+
+```bash
+# First administrator (password: 12+ characters, at most 72 UTF-8 bytes)
+ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='a-long-unique-password' npm run db:seed
+
+# Demo content: 50 users (user1@gmail.com … user50@gmail.com) and 10 published
+# stories with tags, claps, comments, bookmarks and follows.
+npm run db:seed:demo
+```
+
+The demo seeder is safe to re-run and refuses to run with `NODE_ENV=production`.
+Demo users still go through account setup (name and second factor) on first
+sign-in.
+
+## Scripts
+
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` / `build` / `start` | Next.js dev server, production build, production server |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm test` | Unit and component tests (`tests/*.test.ts(x)`) |
+| `npm run test:integration` | PostgreSQL/Redis/browser tests (`tests/*.integration.ts`); needs `TEST_DATABASE_URL` and `TEST_REDIS_URL` |
+| `npm run db:migrate` | Create and apply a migration (development) |
+| `npm run db:migrate:deploy` | Apply pending migrations (CI/production) |
+| `npm run db:generate` | Regenerate the Prisma client |
+| `npm run db:studio` | Prisma Studio |
+| `npm run db:seed` / `db:seed:demo` | Admin seed / demo content |
+| `npm run db:cleanup` | Delete reader views older than 30 days and expired sessions, tokens and passkey challenges. Run daily. |
+
+## Environment variables
+
+[.env.example](.env.example) lists every variable. The essentials:
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `DATABASE_URL` | yes | PostgreSQL connection string |
+| `NEXTAUTH_URL` | yes | Canonical origin. Used for same-origin checks, passkey RP ID and share links |
+| `NEXTAUTH_SECRET` | yes | Auth.js secret; also signs reader cookies and HMACs rate-limit keys |
+| `ADMIN_JWT_SECRET` | yes | 32+ random characters for admin JWTs |
+| `MFA_ENCRYPTION_KEY` | yes (prod) | 32 random bytes, base64. Encrypts authenticator-app secrets |
+| `REDIS_URL` | yes (prod) | Shared rate limits; production fails closed without it |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | yes (prod) | Real keys; test keys are rejected in production |
+| `GOOGLE_*`, `GITHUB_*` | optional | OAuth providers |
+| `RESEND_API_KEY` | prod email | Sign-in emails in production |
+| `EMAIL_SERVER`, `EMAIL_FROM` | dev email | Mailpit SMTP in development |
+| `R2_*` | for uploads | Cloudflare R2 bucket, keys and public URL |
+| `CLAMAV_HOST`, `CLAMAV_PORT` | optional | Upload virus scanning (fails closed when set) |
+| `OPENAI_API_KEY`, `OPENAI_MODEL` | for AI editor | Responses API key and model |
+| `STRIPE_SECRET_KEY` | for erasure of subscribers | Used only to cancel a subscription during account erasure |
+| `TRUST_PROXY_IP` | optional | `1` only behind an ingress that overwrites `X-Forwarded-For` |
+
+[DEPLOY.md](DEPLOY.md) explains each one in production terms.
+
+## Project layout
 
 ```text
-User ──< Article ──< Comment (threaded)
-     ──< Clap     (per article, up to 50)
-     ──< Bookmark
-     ──< Follow   (follower ↔ following)
-     ──  Subscription (one Stripe sub per user)
-
-Article ──< ArticleTag >── Tag
-        ──< ArticleView   (paywall quota tracking)
+app/
+  (public)/            Home feed and marketing/legal pages
+  (auth)/              login, signup, verify (email link), mfa (challenge + setup), sign-in-error
+  [username]/          Author profile and [slug] article page
+  new-story/, editor/  Story editor (create / edit)
+  ai-editor/           AI editor page
+  me/                  Writer workspace: stories, stats, audience, library, following, security, help
+  settings/            Profile and appearance
+  admin/               Admin login and (console)/ pages
+  api/                 Route handlers (see API.md)
+components/            UI: article, editor, layout, security, auth, admin, marketing, theme
+lib/                   Server logic: auth, mfa/, paywall, engagement, media, rate limits, validation
+prisma/                Schema, migrations, seed and demo seed
+proxy.ts               Request pipeline: rate limits, CSRF, body limits, CSP, admin guard, reader cookie
+scripts/               cleanup.ts and the launcher's env loader
+tests/                 Unit, component and integration tests
 ```
-
-Full-text search uses a `tsvector` GIN index added via a raw migration alongside the initial schema (see `ARCHITECTURE.md §5.2`).
-
----
-
-## API Routes
-
-| Method | Path                         | Auth      | Description                      |
-| ------ | ---------------------------- | --------- | -------------------------------- |
-| GET    | `/api/articles`              | —         | Paginated feed (`?tag=&cursor=`) |
-| POST   | `/api/articles`              | session   | Create draft                     |
-| PATCH  | `/api/articles/[id]`         | author    | Update                           |
-| DELETE | `/api/articles/[id]`         | author    | Delete                           |
-| POST   | `/api/articles/[id]/publish` | author    | Publish / unpublish              |
-| POST   | `/api/auth/magic-link`       | Turnstile | Request email sign-in            |
-| POST   | `/api/auth/oauth-turnstile`  | Turnstile | Pre-authorize OAuth sign-in      |
-| GET    | `/api/admin/me`              | admin     | Current admin profile            |
-| GET    | `/api/admin/users`           | admin     | List users                       |
-| PATCH  | `/api/admin/users/[id]`      | admin     | Update user                      |
-| DELETE | `/api/admin/users/[id]`      | admin     | Delete user                      |
-| GET    | `/api/admin/articles`        | admin     | List all articles                |
-| POST   | `/api/admin/articles`        | admin     | Create admin article             |
-| GET    | `/api/health`                | —         | Health check                     |
-
----
-
-## Paywall
-
-Soft paywall — 5 member-only articles per `visitorId` per 30-day rolling window. Bypass-able by design (incognito, cleared cookies). This is a conversion nudge, not DRM.
-
-**Critical:** the full article body is never serialized into the HTML for unauthorized requests. Only a `~300`-word plain-text excerpt is returned. No CSS blur tricks.
-
----
-
-## Planned Stripe Webhooks
-
-Stripe dependencies are installed, but checkout, portal, and webhook routes are
-not implemented yet. When subscriptions are added, verify Stripe signatures and
-deduplicate webhook events before updating `Subscription` rows.
-
-## Writing desk and media
-
-`/new-story` creates a story; `/editor/[id]` reopens an owned draft. Save draft
-persists the structured document, plain-text search/excerpt content, subtitle,
-cover, and member-only setting. Published pages render document nodes through a
-fixed React renderer; legacy plain-text stories remain readable. Save before
-leaving the editor. There is no automatic save or cross-device conflict resolution.
-
-### Cloudflare R2
-
-Set `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`,
-and `R2_PUBLIC_URL` in the server environment. Create an R2 bucket and a
-bucket-scoped Object Read & Write token. Copy the account ID and public HTTPS
-custom-domain URL from Cloudflare; do not expose access keys in `NEXT_PUBLIC_*`
-variables. Existing Vercel image URLs remain readable.
-
-The app sends images through authenticated `POST /api/media` to R2 using the S3
-SDK. JPEG, PNG and WebP files are limited to 600 KB and checked against their
-file signatures. Each user can upload 50 images per day. Browser-to-R2 CORS is
-unnecessary because uploads go through the application server.
-
-Objects use `stories/{userId}/{randomId}.{extension}`. Uploaded images are public,
-including images inserted into unpublished drafts; do not upload confidential
-media. Removing an image from a story does not delete its object. Account erasure deletes the user’s image prefix before removing database records;
-storage failures stop erasure so it can be retried. Public caches may retain images
-for up to an hour; purge the configured CDN when immediate removal is required.
-Orphan cleanup for removed story images is not automated.
-
-Video links support public YouTube and Vimeo videos. The server requests metadata
-only from their fixed oEmbed endpoints, rejects redirects, and validates thumbnail
-hosts. Readers see a thumbnail and explicitly load the player on click. Providers
-may restrict embedding or remove videos later.
-
-### Premium AI editor
-
-Set `OPENAI_API_KEY` and `OPENAI_MODEL` to a Responses API model available to your
-OpenAI project. `POST /api/ai/editor` checks the database subscription on every
-request: only ACTIVE or TRIALING subscriptions with an unexpired period qualify.
-Checkout and subscription provisioning remain unimplemented; the editor never
-grants membership based on client input.
-
-Actions include polish, shorten, expand, outline, title suggestions, and editorial
-feedback. The user explicitly sends a selection or draft of up to 12,000 characters
-to OpenAI and reviews suggestions before insertion. Requests use `store: false`,
-a 45-second timeout, and at most 2,000 output tokens. Each user gets 30 requests
-per day through the shared Redis limiter; attempts count even when upstream fails.
-Production requires Redis and fails closed when the limiter is unavailable.
-Provider billing and retention policies still apply. Suggestions are not fact-checked.
-
-With missing service credentials, upload and AI routes return 503 and the editor
-keeps the story intact. Live provider verification requires configured credentials.
-
----
-
-## Cost at < 10k MAU
-
-| Service                  | Plan                | Cost        |
-| ------------------------ | ------------------- | ----------- |
-| Railway (app + Postgres) | Hobby               | ~$10/mo     |
-| Resend                   | Free (3k emails/mo) | $0          |
-| Stripe                   | 2.9% + $0.30/txn    | per-use     |
-| Vercel Blob              | Hobby (1 GB)        | $0          |
-| **Total fixed**          |                     | **~$10/mo** |

@@ -67,3 +67,35 @@ Run `npm run db:cleanup` daily in a maintenance environment with the TypeScript 
 An application rate limiter does not absorb volumetric DDoS attacks. Require edge connection/request/time limits, private authenticated data stores and appropriate WAF/CDN protection. Keep `/api/health` as cheap liveness; monitor dependencies separately. Redis must have bounded memory with `noeviction`, since eviction would reset penalties. Without verified proxy trust, clients intentionally share aggregate buckets; Redis failure denies protected requests.
 
 No deployment, real email, OAuth login, billing-provider operation or production security posture is claimed by this review. CI status must be checked on the pushed commit.
+
+## Addendum — features added after the review (25 October 2026)
+
+The review above covers commit `29736a4`. Its statement under API9 that "no
+upload/checkout/webhook implementation exists" no longer holds for uploads. The
+features below were added later (pull requests #2–#13). They were built to the
+same controls and have unit tests, but have **not** been through a review like
+the one above.
+
+| Area | New surface | Controls in place |
+| --- | --- | --- |
+| Second factors (#5) | `/api/auth/mfa/*`, `/api/auth/passkey/*`, `/api/me/security/*`, `/api/admin/security/*`, `/api/admin/login/*` | Credential rate-limit tier; 10 attempts per account per 15 minutes; WebAuthn user verification and single-use challenges; encrypted TOTP secrets with replay protection; proof required for factor changes |
+| Required account setup (#12) | `/mfa`, `PATCH /api/me` | Sessions without a name and second factor are treated as signed out by `auth()`; only setup routes use `authForAccountSetup()` |
+| Email link confirmation (#13) | `/verify` | Token spent only on explicit submit; provider id allow-listed; page sends no referrer and is not indexed |
+| Image uploads (#8, #10) | `POST /api/media` | Session, 50 per day, 600 KB, magic-byte check, optional ClamAV (fails closed), `sharp` decode with pixel limit, WebP re-encode, random R2 keys |
+| Video previews (#8) | `POST /api/videos` | Session; fixed oEmbed hosts; redirects rejected; 8-second timeout; thumbnail host allow-list |
+| AI editor (#8, #12) | `POST /api/ai/editor` | Premium checked per request; 30 per day; 12,000-character input; `store: false`; 45-second timeout; output used as plain text |
+| Guest comments and votes (#10) | `POST /api/articles/{id}/comments`, `PUT /api/articles/{id}/feedback`, `DELETE /api/comments/{id}` | Signed reader cookie; Turnstile and name validation for guests; per-voter limits (10 comments per hour, 60 votes per 10 minutes); published stories only; replies one level deep; soft delete limited to commenter or story author |
+| Local drafts (#12) | Browser `localStorage` | Keys are per account; data stays on the device; the server validates every save as before |
+
+Open items for the next review:
+
+- Account-existence disclosure on `/api/auth/magic-link` (`404 no_account`,
+  `409 account_exists`) is a deliberate trade-off for clearer sign-in and
+  sign-up. It is bounded by Turnstile and rate limits.
+- Guest comments rely on Turnstile and per-reader limits; a new browser gets a new
+  reader id.
+- Uploaded images are public before publication, and orphaned objects are not
+  cleaned up.
+- `docker-compose.yml` does not pass `MFA_ENCRYPTION_KEY`, `R2_*`, `CLAMAV_*`
+  or `OPENAI_*` to the app container.
+- Live Resend, OAuth, R2, ClamAV and OpenAI calls were not exercised in CI.

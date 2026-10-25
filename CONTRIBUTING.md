@@ -1,281 +1,191 @@
 # Contributing to Nystara
 
-Thank you for considering contributing to Nystara! This document provides guidelines and instructions for contributing.
+Thanks for helping. This guide covers local setup, the standards we hold code
+to, tests, and how pull requests are reviewed.
 
-## Table of Contents
+## Contents
 
-- [Code of Conduct](#code-of-conduct)
-- [Getting Started](#getting-started)
-- [Development Workflow](#development-workflow)
-- [Coding Standards](#coding-standards)
-- [Commit Guidelines](#commit-guidelines)
-- [Pull Request Process](#pull-request-process)
-- [Testing](#testing)
+- [Code of conduct](#code-of-conduct)
+- [Local setup](#local-setup)
+- [Workflow](#workflow)
+- [Coding standards](#coding-standards)
+- [Security rules](#security-rules)
+- [Tests](#tests)
+- [Commits](#commits)
+- [Pull requests](#pull-requests)
 
-## Code of Conduct
+## Code of conduct
 
-- Be respectful and inclusive
-- Focus on constructive feedback
-- Assume good intentions
-- Help maintain a welcoming environment
+Be respectful, give specific and constructive feedback, and assume good intent.
 
-## Getting Started
+## Local setup
 
-### Prerequisites
+Requirements: Node 22.12+, Git, and Podman (`podman compose` or
+`podman-compose`) or Docker Compose v2.
 
-- Node.js 22+
-- Docker + Docker Compose
-- Git
-- A code editor (VS Code recommended)
+```bash
+git clone https://github.com/EminentSoftwareTechnology/Nystara.git
+cd Nystara
+./start.sh
+```
 
-### Initial Setup
+`start.sh` installs dependencies, creates `.env.local` with random secrets if
+you have no env file, starts PostgreSQL (`127.0.0.1:5442`), Redis
+(`127.0.0.1:6389`) and Mailpit (<http://localhost:8035>), applies migrations and
+runs the app at <http://localhost:6100>. It never resets or seeds your database.
 
-1. Fork the repository
-2. Clone your fork:
-   ```bash
-   git clone https://github.com/YOUR_USERNAME/nystara.git
-   cd nystara
-   ```
+Optional seed data:
 
-3. Install dependencies:
-   ```bash
-   npm install
-   ```
+```bash
+ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='a-long-unique-password' npm run db:seed
+npm run db:seed:demo   # 50 users (user1@gmail.com …) and 10 stories
+```
 
-4. Copy environment variables:
-   ```bash
-   cp .env.example .env
-   ```
+Sign in through the email link that arrives in Mailpit. New accounts must add a
+display name and a passkey or authenticator app before the app opens. Passkeys
+work on `localhost` in current browsers.
 
-5. Start the database:
-   ```bash
-   docker compose up db -d
-   ```
+To work on uploads or the AI editor, add the `R2_*` or `OPENAI_*` variables to
+`.env.local`. Without them those routes return 503, which is expected.
 
-6. Run migrations:
-   ```bash
-   npm run db:migrate
-   ```
+## Workflow
 
-7. Seed the database (optional):
-   ```bash
-   npm run db:seed
-   ```
+1. Pull the latest `main` and branch from it: `feat/…`, `fix/…`, `docs/…`,
+   `refactor/…`, `perf/…` or `chore/…`.
+2. Make the change, with tests.
+3. Run the checks below.
+4. Push and open a pull request against `main`.
 
-8. Start the development server:
-   ```bash
-   npm run dev
-   ```
+## Coding standards
 
-## Development Workflow
+### General
 
-1. **Create a feature branch**:
-   ```bash
-   git checkout -b feat/your-feature-name
-   ```
-
-2. **Make your changes** following our coding standards
-
-3. **Test your changes** thoroughly
-
-4. **Commit your changes** following our commit guidelines
-
-5. **Push to your fork**:
-   ```bash
-   git push origin feat/your-feature-name
-   ```
-
-6. **Open a Pull Request** against the `main` branch
-
-## Coding Standards
+- Solve the problem in front of you. No speculative abstractions, options or
+  configuration nobody asked for.
+- Keep diffs focused. Don't reformat or refactor unrelated code; mention it in the
+  PR instead.
+- Comments explain *why*, not what. Skip comments on self-evident code.
+- Don't add error handling for paths that cannot happen.
 
 ### TypeScript
 
-- **Strict mode enabled**: No implicit `any`
-- **No `any` types**: Use proper typing or `unknown` with type guards
-- **Prefer const**: Use `const` for variables that won't be reassigned
-- **Functional patterns**: Prefer pure functions where possible
+- Strict mode. **No `any`.** Use `unknown` and narrow it.
+- Validate every external input (request bodies, query strings, provider
+  responses) with Zod at the boundary.
+- Select explicit fields in Prisma queries and responses; never return whole rows.
 
-### React/Next.js
+### Next.js and React
 
-- **Server Components by default**: Use `"use client"` only when needed
-- **Async Server Components**: Leverage async/await in Server Components
-- **Proper data fetching**: Fetch at the component level, not in parent
-- **Error boundaries**: Handle errors appropriately
-
-### File Naming
-
-- Components: `PascalCase.tsx`
-- Utilities: `kebab-case.ts`
-- API routes: `route.ts`
-- Pages: `page.tsx`
-
-### Code Organization
-
-```
-app/
-  (route-group)/     # Route groups for shared layouts
-  api/               # API routes
-  actions/           # Server actions
-components/          # Reusable UI components
-lib/                 # Utility functions and shared logic
-prisma/              # Database schema and migrations
-```
+- This is Next.js 16. APIs differ from older versions: request interception lives
+  in `proxy.ts` (not `middleware.ts`), and `params` / `searchParams` are promises.
+  Check `node_modules/next/dist/docs/` when unsure (see [AGENTS.md](AGENTS.md)).
+- Server Components by default; add `"use client"` only for interactivity.
+- Pages that need a signed-in user wrap their content in `AppShell` or call
+  `auth()` and redirect.
+- Use `auth()` for normal access. `authForAccountSetup()` and
+  `authIncludingPendingMfa()` exist only for the `/mfa` flow and its APIs.
 
 ### Styling
 
-- Use Tailwind CSS classes
-- Follow mobile-first responsive design
-- Keep class lists readable (use line breaks for long lists)
-- Use semantic color names from theme
+- Tailwind CSS 4 with the design tokens in `app/globals.css` (`bg-page`,
+  `text-muted`, `border-border` and similar). Shared helpers are in
+  `components/ui.tsx` (`buttonClass`, `INPUT`, `CARD`, `cx`).
+- Check light, dark and sand themes, and phone width. Touch layouts use the
+  `touch:` variant.
+
+### Files and naming
+
+| Kind | Convention |
+| --- | --- |
+| Components | `PascalCase.tsx` |
+| Library modules | `kebab-case.ts` in `lib/` |
+| Route handlers | `app/api/**/route.ts` |
+| Tests | `tests/<area>.test.ts(x)`; database/browser tests `tests/<area>.integration.ts` |
 
 ### Database
 
-- **Always use transactions** for multi-step operations
-- **Index frequently queried fields**
-- **Use proper relations**: Cascade deletes where appropriate
-- **Migrations**: Never edit existing migrations, create new ones
+- Change `prisma/schema.prisma`, then `npm run db:migrate -- --name <change>`.
+  Commit the new folder in `prisma/migrations/`. Never edit an applied migration.
+- Add indexes for new foreign keys and frequent filters.
+- User-owned rows must cascade on user delete, so account erasure stays complete.
+  If you add a new kind of personal data, add it to `GET /api/me/export`.
+- Use a transaction for multi-step writes that must succeed together.
 
-## Commit Guidelines
+## Security rules
 
-We follow [Conventional Commits](https://www.conventionalcommits.org/):
+- Never commit `.env`, `.env.local`, secrets, tokens or real user data.
+- Every new write route sits behind `proxy.ts` (origin check, rate limit, body
+  limit). Add per-user or per-reader limits for anything costly or abusable.
+- Check ownership in the handler before reading or writing private data.
+- Render user content as text through React. Don't add `dangerouslySetInnerHTML`.
+- Don't trust client-supplied identity, prices, roles or premium status.
+- New outbound requests need a fixed host, a timeout and validated responses.
+- Update [SECURITY.md](SECURITY.md) when you add or change a control, and
+  [API.md](API.md) when you add or change an endpoint.
 
-```
-<type>(<scope>): <subject>
+## Tests
 
-<body>
-
-<footer>
-```
-
-### Types
-
-- `feat`: New feature
-- `fix`: Bug fix
-- `refactor`: Code refactoring
-- `perf`: Performance improvement
-- `chore`: Build process or auxiliary tool changes
-- `docs`: Documentation only
-- `style`: Code style changes (formatting, missing semi-colons, etc.)
-- `test`: Adding or updating tests
-
-### Examples
+Run these before pushing:
 
 ```bash
-feat(articles): add member-only article support
-
-- Add memberOnly field to Article model
-- Implement paywall logic in article page
-- Add free article quota tracking
-
-Closes #42
+npm run lint
+npm run typecheck
+npm test
 ```
+
+Integration tests need disposable databases. They create and drop data, so never
+point them at a database you care about:
 
 ```bash
-fix(auth): prevent oauth signup without turnstile verification
-
-The oauth callback was not checking for turnstile token.
-Now returns 403 if token is missing or invalid.
+TEST_DATABASE_URL=postgresql://… TEST_REDIS_URL=redis://… npm run test:integration
 ```
 
-### Rules
+| File | Covers |
+| --- | --- |
+| `tests/security.test.ts` | Origin/CSRF checks, body limits, rate limiter, proxy IP trust, admin tokens, reader identity, bcrypt limits, CSP, content limits, production fail-closed rules |
+| `tests/mfa.test.ts` | TOTP encryption and replay protection, recovery codes, WebAuthn payload validation, safe redirects |
+| `tests/story.test.tsx` | Story document validation and rendering, R2 and video URL rules, premium access, AI output parsing |
+| `tests/engagement.test.ts` | Image pipeline (resize, metadata, corrupt files), ClamAV, guest comment names and delete rights, story theme fallback |
+| `tests/reader-ui.test.tsx` | Editor ribbon, share bar and trending rail rendering |
+| `tests/r2.test.ts` | Account image erasure across pages and partial failures |
+| `tests/nav.test.ts` | Navigation sections, active-link matching, per-account browser drafts |
+| `tests/auth-adapter.test.ts` | Stale session deletion |
+| `tests/launcher.test.ts` | `start.sh` dotenv handling and port selection |
+| `tests/security.integration.ts` | Real PostgreSQL/Redis: authorisation, CSRF, mass assignment, export paging, admin token revocation, paywall concurrency, erasure, retention cleanup, shared Redis limits, migrations, and a browser publish under the production CSP |
 
-- Use imperative mood ("add feature" not "added feature")
-- Don't capitalize first letter of subject
-- No period at the end of subject
-- Keep subject line under 50 characters
-- Wrap body at 72 characters
-- Reference issues in footer
+CI (`.github/workflows/security.yml`) runs on every pull request: install,
+Prisma generate, lint, typecheck, unit tests, `npm audit --audit-level=moderate`,
+migrations, production build and integration tests. A pull request must pass CI
+before it is merged.
 
-## Pull Request Process
+For UI changes, also check by hand: phone and desktop widths, all themes,
+keyboard navigation, and no console errors.
 
-### Before Submitting
+## Commits
 
-1. ✅ Code follows our style guidelines
-2. ✅ TypeScript compiles without errors
-3. ✅ No linting errors (`npm run lint`)
-4. ✅ Database migrations work (`npm run db:migrate`)
-5. ✅ Changes are tested locally
-6. ✅ Commit messages follow conventions
-7. ✅ Branch is up to date with `main`
+We use [Conventional Commits](https://www.conventionalcommits.org/):
 
-### PR Title
+```text
+<type>(<optional scope>): <subject>
 
-Use the same format as commit messages:
-```
-feat(scope): description
-```
-
-### PR Description Template
-
-```markdown
-## Description
-Brief description of changes
-
-## Type of Change
-- [ ] Bug fix
-- [ ] New feature
-- [ ] Breaking change
-- [ ] Documentation update
-
-## Testing
-How to test the changes
-
-## Checklist
-- [ ] Code follows style guidelines
-- [ ] Self-reviewed code
-- [ ] Commented complex logic
-- [ ] Updated documentation
-- [ ] No new warnings
-- [ ] Database migrations tested
+<body: what changed and why>
 ```
 
-### Review Process
+Types: `feat`, `fix`, `refactor`, `perf`, `docs`, `test`, `chore`.
 
-1. Maintainers will review your PR
-2. Address any requested changes
-3. Once approved, a maintainer will merge
+- Imperative mood ("add", not "added"), lowercase subject, no full stop.
+- Subject under about 70 characters.
+- Sign your commits; don't skip hooks with `--no-verify`.
+- Stage specific files rather than `git add .`.
 
-### After Merge
+## Pull requests
 
-- Delete your feature branch
-- Pull latest `main` for your next contribution
+- Title in commit format, for example `feat(editor): add table support`.
+- Fill in the [pull request template](.github/pull_request_template.md): what
+  changed, why, how you tested, and any migration or environment changes.
+- Include screenshots for UI changes.
+- Keep the branch up to date with `main` and resolve conflicts on your branch.
+- A maintainer reviews and merges. Delete the branch afterwards.
 
-## Testing
-
-### Manual Testing Checklist
-
-For features, test:
-- ✅ Happy path works as expected
-- ✅ Error cases are handled gracefully
-- ✅ Edge cases are considered
-- ✅ UI is responsive on mobile and desktop
-- ✅ Works in both light and dark mode (if applicable)
-- ✅ No console errors or warnings
-
-### Database Testing
-
-When changing schema:
-- ✅ Migration can be applied to empty database
-- ✅ Migration can be applied to existing database
-- ✅ Rollback works (if needed)
-- ✅ No data loss on existing records
-
-### API Testing
-
-For API routes:
-- ✅ Returns correct status codes
-- ✅ Validates input properly
-- ✅ Handles authentication/authorization
-- ✅ Returns properly typed responses
-- ✅ Handles errors gracefully
-
-## Questions?
-
-- Check existing issues and discussions
-- Open a new issue for bugs or feature requests
-- Ask questions in discussions
-
-## License
-
-By contributing, you agree that your contributions will be licensed under the same license as the project.
+By contributing, you agree that your contributions are licensed under the same
+terms as the project.

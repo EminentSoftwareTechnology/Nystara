@@ -1,489 +1,293 @@
-# DEPLOY.md
+# Deploying Nystara
 
-Security review deployment requirements take precedence over older examples below: use the patched lockfile; configure shared `REDIS_URL`, canonical `NEXTAUTH_URL`, separate random admin/auth secrets, and real Turnstile keys. Set the public Turnstile site key as a Docker build argument. Database URLs belong in runtime variables, not build arguments. Verify proxy header behavior before enabling `TRUST_PROXY_IP=1`; require ingress DDoS/connection/body limits, private data stores, and daily `npm run db:cleanup` from a maintenance environment with dev tools installed. Apply migration `5_security_review` before serving the new app; administrators must sign in again. See [SECURITY_REVIEW.md](SECURITY_REVIEW.md).
+This guide covers production deployment. The app is a Next.js standalone server
+in a Docker image. It needs PostgreSQL 16 and Redis 7, and runs migrations on
+startup.
 
-Deployment guide for Nystara to various platforms.
+Read [SECURITY.md](SECURITY.md) and [SECURITY_REVIEW.md](SECURITY_REVIEW.md)
+before your first launch. They list operator duties the code cannot do for you.
 
-## Table of Contents
+## Contents
 
-- [Railway (Recommended)](#railway-recommended)
-- [Vercel + Railway](#vercel--railway)
-- [Docker (Self-Hosted)](#docker-self-hosted)
-- [Environment Variables](#environment-variables)
-- [Database Migrations](#database-migrations)
-- [Post-Deployment Checklist](#post-deployment-checklist)
-
----
-
-## Railway (Recommended)
-
-Railway provides both app hosting and managed PostgreSQL in one platform.
-
-### Prerequisites
-
-- Railway account ([railway.app](https://railway.app))
-- GitHub repository connected
-
-### Step-by-Step
-
-1. **Create a new Railway project**
-   ```
-   New Project → Deploy from GitHub repo → Select nystara
-   ```
-
-2. **Add PostgreSQL database**
-   ```
-   + New → Database → PostgreSQL
-   ```
-   Railway automatically injects `DATABASE_URL` into your app.
-
-3. **Configure environment variables**
-   
-   Go to your app service → Variables → Add all from [Environment Variables](#environment-variables) section below (except `DATABASE_URL`).
-
-4. **Deploy**
-   
-   Railway detects `Dockerfile` via `railway.toml` and builds automatically.
-   
-   Every push to `main` triggers a new deployment.
-
-5. **Set up custom domain** (optional)
-   ```
-   Settings → Domains → Add Custom Domain
-   ```
-   Update `NEXTAUTH_URL` to your custom domain.
-
-### Railway Configuration
-
-The `railway.toml` file configures:
-- Build command: Docker build
-- Start command: Handled by Dockerfile entrypoint
-- Health check: `/api/health`
-
-### Costs
-
-- **Hobby Plan**: $5/month + usage
-- **Database**: Included in usage (~$5-10/month for small apps)
-- **Total**: ~$10-15/month for < 10k MAU
+- [What you need](#what-you-need)
+- [Environment variables](#environment-variables)
+- [Railway](#railway)
+- [Docker on your own host](#docker-on-your-own-host)
+- [Other platforms](#other-platforms)
+- [Migrations](#migrations)
+- [First administrator](#first-administrator)
+- [Scheduled maintenance](#scheduled-maintenance)
+- [Launch checklist](#launch-checklist)
+- [Rollback and backups](#rollback-and-backups)
+- [Troubleshooting](#troubleshooting)
 
 ---
 
-## Vercel + Railway
+## What you need
 
-Host the Next.js app on Vercel, database on Railway.
-
-### Why This Setup?
-
-- Vercel: Best Next.js hosting, global edge network, automatic previews
-- Railway: Managed PostgreSQL, easy backups, reasonable pricing
-
-### Step-by-Step
-
-1. **Set up Railway database**
-   ```
-   New Project → Database → PostgreSQL
-   ```
-   Copy the `DATABASE_URL` from Railway.
-
-2. **Deploy to Vercel**
-   ```
-   New Project → Import Git Repository → nystara
-   ```
-
-3. **Add environment variables to Vercel**
-   
-   Project Settings → Environment Variables → Add all from [Environment Variables](#environment-variables) section.
-   
-   Use the `DATABASE_URL` from Railway.
-
-4. **Configure build settings**
-   - Framework Preset: Next.js
-   - Build Command: `npm run build`
-   - Output Directory: (leave default)
-   
-5. **Run database migrations**
-   
-   In Railway, create a new service for migrations:
-   ```bash
-   # One-time migration service
-   docker run --rm \
-     -e DATABASE_URL="$RAILWAY_DATABASE_URL" \
-     ghcr.io/your-username/nystara:latest \
-     npx prisma migrate deploy
-   ```
-   
-   Or run locally:
-   ```bash
-   DATABASE_URL="railway-connection-string" npm run db:migrate:deploy
-   ```
-
-### Costs
-
-- **Vercel Hobby**: Free (with generous limits)
-- **Railway Database**: ~$5-10/month
-- **Total**: ~$5-10/month for < 10k MAU
+| Dependency | Why | Notes |
+| --- | --- | --- |
+| PostgreSQL 16 | Primary data store | Private network, TLS and authentication |
+| Redis 7 | Rate limits shared across replicas | **Required in production**: without it, limited requests are denied. Use a dedicated instance with bounded memory and `maxmemory-policy noeviction` |
+| Cloudflare Turnstile | Bot checks on sign-in, admin login and guest comments | Real keys; the documented test keys are rejected in production |
+| Resend | Sign-in emails | Verify the sending domain (SPF/DKIM). The sender is `noreply@nystara.com` (`auth.config.ts`) |
+| Google and/or GitHub OAuth apps | Optional social sign-in | Callback URLs: `{NEXTAUTH_URL}/api/auth/callback/google` and `/github` |
+| Cloudflare R2 | Image uploads | Bucket-scoped Object Read & Write token; public custom domain or `r2.dev` URL |
+| ClamAV (`clamd`) | Optional upload scanning | Reachable over TCP; uploads fail closed when configured but unreachable |
+| OpenAI | Optional AI editor | Responses API model available to your project |
+| Stripe | Optional; used only to cancel a subscription during account erasure | No checkout or webhooks exist yet |
 
 ---
 
-## Docker (Self-Hosted)
+## Environment variables
 
-Deploy anywhere that supports Docker (DigitalOcean, AWS, GCP, Azure, etc.).
-
-### Prerequisites
-
-- Docker host (VPS or container platform)
-- PostgreSQL database (managed or self-hosted)
-
-### Build Image
-
-```bash
-docker build -t nystara:latest .
-```
-
-### Run Container
-
-```bash
-docker run -d \
-  --name nystara \
-  -p 6000:3000 \
-  -e DATABASE_URL="postgresql://..." \
-  -e NEXTAUTH_URL="https://yourdomain.com" \
-  -e NEXTAUTH_SECRET="..." \
-  -e GOOGLE_CLIENT_ID="..." \
-  -e GOOGLE_CLIENT_SECRET="..." \
-  -e GITHUB_CLIENT_ID="..." \
-  -e GITHUB_CLIENT_SECRET="..." \
-  -e RESEND_API_KEY="..." \
-  -e NEXT_PUBLIC_TURNSTILE_SITE_KEY="..." \
-  -e TURNSTILE_SECRET_KEY="..." \
-  -e ADMIN_JWT_SECRET="..." \
-  -e STRIPE_SECRET_KEY="..." \
-  -e BLOB_READ_WRITE_TOKEN="..." \
-  nystara:latest
-```
-
-### Docker Compose (Full Stack)
-
-Use the included `docker-compose.yml`:
-
-```bash
-# Start both app and database
-docker compose up -d
-
-# View logs
-docker compose logs -f
-
-# Stop
-docker compose down
-```
-
-### Health Check
-
-```bash
-curl http://localhost:6000/api/health
-# Expected: {"status":"ok"}
-```
-
----
-
-## Environment Variables
+All of these are runtime variables except `NEXT_PUBLIC_TURNSTILE_SITE_KEY`,
+which is inlined at build time and must be passed as a Docker build argument.
 
 ### Required
 
-```env
-DATABASE_URL=postgresql://user:password@host:5432/dbname
-NEXTAUTH_URL=https://yourdomain.com
-NEXTAUTH_SECRET=<openssl rand -base64 32>
-```
+| Variable | Value |
+| --- | --- |
+| `DATABASE_URL` | `postgresql://user:password@host:5432/db` |
+| `REDIS_URL` | `redis://…` or `rediss://…` |
+| `NEXTAUTH_URL` | The exact public origin, for example `https://nystara.example.com`. API writes must come from this origin; passkeys are bound to its hostname; share links and the `__Secure-` cookie prefix depend on it |
+| `NEXTAUTH_SECRET` | `openssl rand -base64 32`. Also signs reader cookies and keys the rate limiter |
+| `ADMIN_JWT_SECRET` | `openssl rand -base64 32`, different from `NEXTAUTH_SECRET`. At least 32 characters |
+| `MFA_ENCRYPTION_KEY` | `openssl rand -base64 32` (must decode to exactly 32 bytes). Encrypts authenticator-app secrets. Changing it disables existing authenticator-app enrolments |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Build argument |
+| `TURNSTILE_SECRET_KEY` | Runtime secret |
+| `RESEND_API_KEY` | Required for email sign-in in production |
 
-### Authentication (at least one provider required)
+### Optional
 
-```env
-# Google OAuth
-GOOGLE_CLIENT_ID=...
-GOOGLE_CLIENT_SECRET=...
+| Variable | Enables |
+| --- | --- |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google sign-in |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | GitHub sign-in |
+| `R2_ACCOUNT_ID` (32 hex characters), `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL` (HTTPS) | Image uploads. Without them uploads return 503. If `R2_BUCKET_NAME` is set, the rest must be valid or account erasure fails |
+| `CLAMAV_HOST`, `CLAMAV_PORT` (default 3310) | Upload virus scanning |
+| `OPENAI_API_KEY`, `OPENAI_MODEL` | AI editor |
+| `STRIPE_SECRET_KEY` | Cancelling subscriptions during erasure. Needed as soon as any `Subscription` row is not `CANCELED` |
+| `TRUST_PROXY_IP` | `1` only if your ingress appends or overwrites `X-Forwarded-For` **and** direct access to the app is blocked. With `0` (default) all clients share one per-IP bucket; per-user and per-email limits still apply |
+| `STRIPE_WEBHOOK_SECRET`, `BLOB_READ_WRITE_TOKEN` | Reserved; not read by current code |
 
-# GitHub OAuth
-GITHUB_CLIENT_ID=...
-GITHUB_CLIENT_SECRET=...
-
-# Email magic link
-RESEND_API_KEY=...
-```
-
-### Bot Protection
-
-```env
-NEXT_PUBLIC_TURNSTILE_SITE_KEY=...
-TURNSTILE_SECRET_KEY=...
-```
-
-### Admin Panel
-
-```env
-ADMIN_JWT_SECRET=<openssl rand -base64 32>
-ADMIN_EMAIL=admin@yourdomain.com
-ADMIN_PASSWORD=<strong-password>
-```
-
-### Optional (can be added later)
-
-```env
-# Payments
-STRIPE_SECRET_KEY=sk_live_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-
-# Image uploads
-BLOB_READ_WRITE_TOKEN=...
-```
-
-### Generate Secrets
-
-```bash
-# For NEXTAUTH_SECRET and ADMIN_JWT_SECRET
-openssl rand -base64 32
-
-# Output example: 5fP3/Yq8xN...
-```
+Development-only: `EMAIL_SERVER`, `EMAIL_FROM` (Mailpit), `PORT`, `HOST`,
+`POSTGRES_PASSWORD` (local Compose), `ADMIN_EMAIL` / `ADMIN_PASSWORD` (seed).
 
 ---
 
-## Database Migrations
+## Railway
 
-### Initial Setup
+`railway.toml` builds with the `Dockerfile`, starts with
+`./docker-entrypoint.sh node server.js` (migrations, then the server), checks
+`/api/health` with a 300-second timeout, and restarts on failure up to 3 times.
 
-On first deployment, migrations run automatically via `docker-entrypoint.sh`:
+1. Create a project and add the GitHub repository as a service.
+2. Add a **PostgreSQL** service and reference its `DATABASE_URL` in the app.
+3. Add a **Redis** service. Set its memory limit and
+   `maxmemory-policy noeviction`, and reference its URL as `REDIS_URL`.
+4. Set every [required variable](#required) on the app service. Add
+   `NEXT_PUBLIC_TURNSTILE_SITE_KEY` so it is available at build time.
+5. Add a domain and set `NEXTAUTH_URL` to exactly that origin.
+6. Deploy. Each push to the connected branch redeploys.
+7. [Seed the first administrator](#first-administrator) and
+   [schedule cleanup](#scheduled-maintenance).
 
-```bash
-npx prisma migrate deploy
-```
-
-This is safe to run multiple times (idempotent).
-
-### Development Migrations
-
-When you change the schema locally:
-
-```bash
-npm run db:migrate
-# Creates a new migration in prisma/migrations/
-```
-
-Commit the migration files:
-
-```bash
-git add prisma/migrations/
-git commit -m "feat(schema): add new field"
-```
-
-### Production Migrations
-
-On Railway/Docker, migrations run automatically on container start.
-
-For Vercel + Railway:
-- Run migrations manually after schema changes
-- Use Railway's CLI or a migration service
+Leave `TRUST_PROXY_IP=0` until you have confirmed how Railway's edge sets
+`X-Forwarded-For` for your service and that the app cannot be reached directly.
 
 ---
 
-## Post-Deployment Checklist
+## Docker on your own host
 
-### Immediately After Deploy
+### Build and run the image
 
-- [ ] Verify app is accessible at your domain
-- [ ] Test health check: `curl https://yourdomain.com/api/health`
-- [ ] Test database connection (visit any page)
-- [ ] Verify OAuth redirects work (try signing in)
-- [ ] Check admin panel login: `/admin/login`
+```bash
+docker build \
+  --build-arg NEXT_PUBLIC_TURNSTILE_SITE_KEY=0x4AAAA… \
+  -t nystara:$(git rev-parse --short HEAD) .
 
-### Security
+docker run -d --name nystara -p 3000:3000 \
+  --env-file /etc/nystara/production.env \
+  nystara:<tag>
+```
 
-- [ ] HTTPS is enabled (Railway/Vercel handle this automatically)
-- [ ] Environment variables are set (not using defaults)
-- [ ] `ADMIN_PASSWORD` is changed from default
-- [ ] OAuth apps are configured with production URLs only
-- [ ] Turnstile is using production keys (not test keys)
-- [ ] Database backups are enabled
+The image (`node:22-alpine`) has three stages:
 
-### Functionality
+| Stage | Contents |
+| --- | --- |
+| `deps` | Production `node_modules` |
+| `builder` | Full install, `prisma generate`, `next build` (standalone) |
+| `runner` | Standalone server, static assets, Prisma schema, config and CLI for migrations. Runs as UID 1001 on port 3000 |
 
-- [ ] Can create account (OAuth or magic link)
-- [ ] Can create and publish article
-- [ ] Can view published articles
-- [ ] Paywall shows after 5 articles (test in incognito)
-- [ ] Admin panel is accessible and secure
+The entrypoint runs `prisma migrate deploy` before `node server.js`. It never
+resets or seeds.
 
-### Monitoring
+### Full stack with Compose
 
-- [ ] Set up uptime monitoring (UptimeRobot, Pingdom, etc.)
-- [ ] Configure error tracking (Sentry, LogRocket, etc.)
-- [ ] Set up log aggregation (if needed)
-- [ ] Test health check endpoint from monitoring tool
+`./start.sh docker` (or `docker compose up --build`) runs `docker-compose.yml`:
+PostgreSQL 16, Redis 7 (128 MB, `noeviction`) and the app on `${PORT:-6100}`.
+The database and Redis listen on `127.0.0.1` only.
 
-### DNS & Email
+Set in your shell or `.env`: `POSTGRES_PASSWORD` (random hex),
+`NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `ADMIN_JWT_SECRET`,
+`NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, and any optional
+provider keys.
 
-- [ ] Domain is connected and DNS propagated
-- [ ] SPF/DKIM records for Resend (email deliverability)
-- [ ] Test magic link emails are delivered
+`docker-compose.yml` does not pass `MFA_ENCRYPTION_KEY`, the `R2_*`,
+`CLAMAV_*` or `OPENAI_*` variables to the app container. Add them to the `app`
+service's `environment` before relying on authenticator apps, uploads, scanning
+or the AI editor in this stack.
 
-### Performance
+An existing database volume keeps the password it was created with; changing
+`POSTGRES_PASSWORD` later does not rotate it.
 
-- [ ] Test page load times (Lighthouse, WebPageTest)
-- [ ] Verify images are loading from CDN
-- [ ] Check database query performance
-- [ ] Enable caching headers (handled by Next.js ISR)
+### Edge requirements
+
+The app's rate limiter does not stop volumetric attacks. Put a reverse proxy,
+CDN or WAF in front that:
+
+- terminates TLS and redirects HTTP to HTTPS (the app sends HSTS);
+- enforces connection, request-rate, body-size and timeout limits;
+- blocks direct access to the app container;
+- if you enable `TRUST_PROXY_IP=1`, overwrites `X-Forwarded-For` with the real
+  client address.
 
 ---
 
-## Rollback Strategy
+## Other platforms
 
-### Railway
-
-Railway keeps previous deployments. To rollback:
-
-1. Go to Deployments tab
-2. Click on a previous successful deployment
-3. Click "Redeploy"
-
-### Vercel
-
-Vercel keeps all deployments. To rollback:
-
-1. Go to Deployments tab
-2. Find the working deployment
-3. Click "..." → "Promote to Production"
-
-### Docker
-
-Keep tagged images:
-
-```bash
-# Tag each release
-docker tag nystara:latest nystara:v0.1.0
-
-# Rollback
-docker stop nystara
-docker rm nystara
-docker run ... nystara:v0.1.0
-```
+The app needs a long-running Node.js server, outbound TCP to Redis and
+PostgreSQL (and ClamAV if used), and `sharp`'s native binaries. Any container
+platform works. Serverless hosts such as Vercel have not been tested; if you try
+one, make sure `proxy.ts` can reach Redis, set `REDIS_URL`, and run
+`npm run db:migrate:deploy` as a release step because there is no entrypoint.
 
 ---
 
-## Database Backups
+## Migrations
 
-### Railway
+- On container start, `docker-entrypoint.sh` applies pending migrations.
+- Manually: `DATABASE_URL=… npm run db:migrate:deploy`.
+- Create new migrations locally with `npm run db:migrate`, commit the folder under
+  `prisma/migrations/`, and never edit an applied migration.
 
-- **Automatic**: Daily backups (retained for 7 days on Hobby plan)
-- **Manual**: Project → Database → Backups → Create Backup
+| Migration | Change |
+| --- | --- |
+| `0_init` | Base schema |
+| `1_search_vector` | Generated `tsvector` column and GIN index on articles |
+| `2_admin_role` | `role` and `passwordHash` on users |
+| `3_query_indexes` | Feed and lookup indexes |
+| `4_gdpr_cascade_and_fk_indexes` | Cascading deletes and foreign-key indexes |
+| `5_security_review` | `sessionVersion`; comment parent `ON DELETE SET NULL`; comment and view indexes. Existing admin sessions must sign in again |
+| `6_mfa_passkeys` | Passkeys, recovery codes, auth challenges, TOTP columns, `Session.mfaVerifiedAt` |
+| `7_article_engagement` | `ArticleFeedback` (rating CHECK 1–5), guest comments (`guestName`, nullable author), `Article.theme`, comment `(articleId, createdAt)` index |
 
-### Self-Hosted
+Account setup is enforced in code, not by a migration: any existing reader
+without a display name or a second factor is sent to `/mfa` to finish setup on
+their next visit.
 
-Use `pg_dump` via cron:
+---
+
+## First administrator
+
+Run once from a machine with the dev dependencies installed and network access
+to the database:
 
 ```bash
-# Daily backup script
-#!/bin/bash
-BACKUP_DIR=/backups
-DATE=$(date +%Y%m%d_%H%M%S)
-pg_dump $DATABASE_URL > $BACKUP_DIR/nystara_$DATE.sql
-gzip $BACKUP_DIR/nystara_$DATE.sql
-
-# Keep last 30 days
-find $BACKUP_DIR -name "nystara_*.sql.gz" -mtime +30 -delete
+DATABASE_URL=… ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD='…' npm run db:seed
 ```
+
+The password must be 12+ characters and at most 72 UTF-8 bytes. Re-running the
+seed resets the password, keeps the admin role and revokes existing admin
+sessions. Sign in at `/admin/login`, then add a passkey or authenticator under
+**Security**.
+
+---
+
+## Scheduled maintenance
+
+Run daily, from an environment with the dev dependencies (the TypeScript runner
+`tsx`) and `DATABASE_URL`:
+
+```bash
+npm run db:cleanup
+```
+
+It deletes reader views older than 30 days and expired sessions, verification
+tokens and passkey challenges. This repository does not schedule it. Use a cron
+job, a Railway cron service or your platform's scheduler. Older views stop
+counting toward historical view totals.
+
+Collect the app's stdout: security audit events are single JSON lines such as
+`{"event":"admin_login","outcome":"denied","timestamp":"…"}`. Alert on spikes
+of `denied`.
+
+---
+
+## Launch checklist
+
+### Configuration
+
+- [ ] `NEXTAUTH_URL` is the exact public origin (scheme, host, no trailing path).
+- [ ] `NEXTAUTH_SECRET`, `ADMIN_JWT_SECRET` and `MFA_ENCRYPTION_KEY` are unique,
+      random and stored only in the platform's secret store.
+- [ ] Real Turnstile keys; the site key was present at build time.
+- [ ] `REDIS_URL` points at a private, authenticated Redis with `noeviction`.
+- [ ] OAuth apps list only production callback URLs.
+- [ ] Resend domain verified.
+- [ ] `TRUST_PROXY_IP` left at `0` unless the ingress behaviour is verified.
+
+### Smoke test
+
+- [ ] `curl https://…/api/health` returns `{"status":"ok"}`.
+- [ ] Sign up by email: the link opens the confirmation page, then account setup
+      asks for a name and a second factor.
+- [ ] Sign in with Google/GitHub and with a passkey.
+- [ ] Write a story, upload an image, add a video, save, publish, view it.
+- [ ] As a guest, comment (Turnstile) and like/rate.
+- [ ] A members-only story shows the excerpt after five members-only reads in a
+      private window.
+- [ ] Admin login works, with and without MFA.
+- [ ] A cross-origin `POST` to any `/api/*` route returns `403`.
+
+### Operations
+
+- [ ] Daily `npm run db:cleanup` scheduled.
+- [ ] Database backups enabled and a restore tested.
+- [ ] Logs collected; alerts on `denied` audit events and on 5xx rates.
+- [ ] Uptime monitor on `/api/health`, plus separate checks for the database and
+      Redis (the health route checks neither).
+- [ ] Privacy, terms and cookie pages reviewed for your organisation, with a real
+      contact address.
+
+---
+
+## Rollback and backups
+
+- **Railway**: open Deployments, choose a previous successful deployment and
+  redeploy it.
+- **Docker**: tag every image with its commit and run the previous tag.
+- Migrations are forward-only. Rolling back code across a migration needs a
+  database restore or a manual reverse migration. Check the migration table
+  above before rolling back.
+- **Backups**: enable your provider's automated PostgreSQL backups, or run
+  `pg_dump "$DATABASE_URL" | gzip > nystara_$(date +%Y%m%d).sql.gz` on a schedule
+  and keep copies off the host. Account erasure does not remove data from
+  existing backups; set a backup retention period that fits your privacy policy.
 
 ---
 
 ## Troubleshooting
 
-### App won't start
-
-1. Check logs: `docker logs nystara` or Railway logs
-2. Verify `DATABASE_URL` is correct
-3. Ensure migrations ran successfully
-4. Check for missing required environment variables
-
-### Database connection errors
-
-1. Verify `DATABASE_URL` format: `postgresql://user:pass@host:port/db`
-2. Check database is running and accessible
-3. Verify network/firewall rules allow connections
-4. Test connection: `psql $DATABASE_URL`
-
-### OAuth not working
-
-1. Verify OAuth app redirect URIs include your domain
-2. Check `NEXTAUTH_URL` matches your actual domain
-3. Ensure Turnstile pre-verification is working
-4. Check OAuth secrets are correct
-
-### Admin panel won't login
-
-1. Verify admin user exists: `npx prisma studio`
-2. Check `role` is set to `ADMIN`
-3. Verify `ADMIN_JWT_SECRET` is set
-4. Test Turnstile is working
-5. Try resetting password via Prisma Studio
-
----
-
-## Scaling Considerations
-
-### < 10k MAU (Current Setup)
-
-- Railway Hobby plan: ✅ Sufficient
-- No caching layer needed
-- No CDN needed (Vercel Edge handles this)
-
-### 10k - 100k MAU
-
-- Upgrade Railway plan or move to dedicated Postgres
-- Add Redis for rate limiting and session storage
-- Consider read replicas for database
-- Add error tracking and APM (Sentry, DataDog)
-
-### > 100k MAU
-
-- Separate app and database infrastructure
-- Use managed Postgres (AWS RDS, Google Cloud SQL)
-- Add CDN for static assets (Cloudflare, Fastly)
-- Implement proper rate limiting (Upstash Rate Limit)
-- Add message queue for email sending (Bull, BullMQ)
-- Consider serverless functions for background jobs
-
----
-
-## Cost Estimates
-
-### Hobby (Railway)
-
-- Compute: ~$5/month
-- Database: ~$5-10/month
-- **Total: ~$10-15/month**
-
-### Professional (Vercel + Railway)
-
-- Vercel Pro: $20/month
-- Railway database: ~$10/month
-- **Total: ~$30/month**
-
-### Self-Hosted (DigitalOcean)
-
-- Droplet (2GB): $18/month
-- Managed Postgres (1GB): $15/month
-- **Total: ~$33/month**
-
-### Enterprise (AWS/GCP)
-
-- App servers: $50-200/month
-- RDS Postgres: $50-150/month
-- CDN: $20-50/month
-- **Total: ~$120-400/month**
-
----
-
-## Support
-
-- **Documentation**: See README.md, ARCHITECTURE.md, API.md
-- **Issues**: [GitHub Issues](https://github.com/your-repo/nystara/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/your-repo/nystara/discussions)
+| Symptom | Likely cause |
+| --- | --- |
+| Every API write returns `403` | `NEXTAUTH_URL` does not match the browser's origin (scheme, host and port) |
+| Many requests return `429` or limited routes always fail | Redis unreachable (production fails closed), or `TRUST_PROXY_IP=0` behind heavy shared traffic |
+| Sign-in loops back to `/mfa` | The account still needs a display name or a second factor; this is expected until setup is finished |
+| Authenticator codes stop working after a deploy | `MFA_ENCRYPTION_KEY` changed or is missing; users can sign in with a passkey or a recovery code and re-enrol |
+| Passkeys fail on a new domain | Passkeys are bound to the hostname of `NEXTAUTH_URL`; users must register new ones for the new domain |
+| Uploads return 503 | R2 variables missing or invalid, or ClamAV configured but unreachable |
+| Account erasure fails | R2 configured but unreachable, or a live subscription and no `STRIPE_SECRET_KEY` |
+| Admin login fails for a seeded admin | Turnstile misconfigured, or the password was changed (sessions revoked); re-run the seed to reset |
+| Container exits on start | A migration failed; check logs from `prisma migrate deploy` |

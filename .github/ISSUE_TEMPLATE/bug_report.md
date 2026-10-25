@@ -36,12 +36,13 @@ If applicable, add screenshots to help explain your problem.
 - **OS**: [e.g., macOS, Windows, Linux]
 - **Browser**: [e.g., Chrome, Safari, Firefox]
 - **Version**: [e.g., 22]
-- **Node Version**: [e.g., 22.0.0]
-- **Deployment**: [e.g., Railway, Vercel, Docker]
+- **Node Version**: [e.g., 22.12.0]
+- **Deployment**: [e.g., local `./start.sh`, Railway, Docker]
+- **Signed in as**: [guest, reader, admin]
 
 ## Error Messages
 
-```
+```text
 Paste any error messages or stack traces here
 ```
 
