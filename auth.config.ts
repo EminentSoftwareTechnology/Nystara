@@ -41,7 +41,7 @@ export const authConfig = {
           from: "noreply@nystara.com",
         })
       : Nodemailer({
-          server: process.env.EMAIL_SERVER ?? "smtp://127.0.0.1:1025",
+          server: process.env.EMAIL_SERVER ?? "smtp://127.0.0.1:1035",
           from: process.env.EMAIL_FROM ?? "Nystara <noreply@nystara.local>",
         }),
   ],
