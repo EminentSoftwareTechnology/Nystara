@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" role="img" aria-label="Nystara"><title>Nystara orbital app icon</title><defs>
+      <linearGradient id="word-gradient" x1="0" y1="0" x2="0" y2="1"><stop class="ink-top" stop-color="#34223F"/><stop class="ink-bottom" offset="1" stop-color="#61416A"/></linearGradient>
+      <linearGradient id="cyan-ring"><stop stop-color="#007D9E"/><stop offset=".28" stop-color="#007D9E" stop-opacity=".55"/><stop offset=".78" stop-color="#007D9E"/><stop offset="1" stop-color="#007D9E"/></linearGradient>
+      <linearGradient id="violet-ring"><stop stop-color="#843BDD"/><stop offset=".4" stop-color="#843BDD" stop-opacity=".7"/><stop offset="1" stop-color="#843BDD"/></linearGradient>
+      <filter id="glow" x="-50%" y="-100%" width="200%" height="300%"><feGaussianBlur stdDeviation="3"/></filter>
+      <filter id="star-glow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="4"/></filter>
+    </defs><rect width="400" height="400" fill="#F4EBDD"/><g class="cyan-motion"><g transform="rotate(28 200 200)">
+          <ellipse cx="200" cy="200" rx="142" ry="36" fill="none" stroke="#007D9E" stroke-width="26" opacity=".30" filter="url(#glow)"/>
+          <ellipse cx="200" cy="200" rx="142" ry="36" fill="none" stroke="url(#cyan-ring)" stroke-width="13"/>
+        </g></g><g class="violet-motion"><g transform="rotate(-43 200 200)">
+          <ellipse cx="200" cy="200" rx="142" ry="36" fill="none" stroke="#843BDD" stroke-width="26" opacity=".30" filter="url(#glow)"/>
+          <ellipse cx="200" cy="200" rx="142" ry="36" fill="none" stroke="url(#violet-ring)" stroke-width="13"/>
+        </g></g><path d="M 200 166.2 Q 205.746 194.254 233.8 200 Q 205.746 205.746 200 233.8 Q 194.254 205.746 166.2 200 Q 194.254 194.254 200 166.2 Z" fill="#573572" opacity=".5" filter="url(#star-glow)"/><path d="M 200 166.2 Q 205.746 194.254 233.8 200 Q 205.746 205.746 200 233.8 Q 194.254 205.746 166.2 200 Q 194.254 194.254 200 166.2 Z" fill="#573572"/><circle cx="200" cy="200" r="5.2" fill="#573572"/></svg>

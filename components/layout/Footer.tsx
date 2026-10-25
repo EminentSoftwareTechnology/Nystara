@@ -1,47 +1,62 @@
 import Link from "next/link";
+import { Logo } from "@/components/brand/Logo";
+import { FooterThemePicker } from "@/components/theme/FooterThemePicker";
 
+const COLUMNS = [
+  {
+    title: "Blog",
+    links: [
+      { href: "/", label: "Home" },
+      { href: "/why-blog", label: "Why blog" },
+      { href: "/features", label: "Features" },
+      { href: "/new-story", label: "Write a story" },
+    ],
+  },
+  {
+    title: "Company",
+    links: [
+      { href: "/about", label: "About" },
+      { href: "/contact", label: "Contact" },
+      { href: "/signup", label: "Create an account" },
+      { href: "/login", label: "Sign in" },
+    ],
+  },
+  {
+    title: "Legal",
+    links: [
+      { href: "/terms", label: "Terms of service" },
+      { href: "/privacy", label: "Privacy policy" },
+      { href: "/cookies", label: "Cookie policy" },
+    ],
+  },
+];
+
+/** Centred on phones and tablets; a left-aligned grid from the desktop breakpoint up. */
 export default function Footer() {
   return (
-    <footer className="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 mt-auto">
-      <div className="mx-auto max-w-6xl px-4 py-10">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8">
-          <div>
-            <Link href="/" className="flex items-center gap-2 font-bold text-lg mb-3">
-              <svg width="22" height="22" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-                <rect width="28" height="28" rx="6" fill="#111827" />
-                <path d="M7 9h14M7 14h10M7 19h12" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-              TechScribe
-            </Link>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Long-form technical articles for software engineers.
-            </p>
-          </div>
-          <div>
-            <h3 className="font-semibold text-sm mb-3 text-gray-900 dark:text-gray-100">Company</h3>
-            <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-              <li><Link href="/about" className="hover:text-gray-900 dark:hover:text-white">About</Link></li>
-              <li><Link href="/contact" className="hover:text-gray-900 dark:hover:text-white">Contact</Link></li>
-            </ul>
-          </div>
-          <div>
-            <h3 className="font-semibold text-sm mb-3 text-gray-900 dark:text-gray-100">Legal</h3>
-            <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-              <li><Link href="/privacy" className="hover:text-gray-900 dark:hover:text-white">Privacy Policy</Link></li>
-              <li><Link href="/terms" className="hover:text-gray-900 dark:hover:text-white">Terms of Service</Link></li>
-              <li><Link href="/cookies" className="hover:text-gray-900 dark:hover:text-white">Cookie Policy</Link></li>
-            </ul>
-          </div>
-          <div>
-            <h3 className="font-semibold text-sm mb-3 text-gray-900 dark:text-gray-100">Account</h3>
-            <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-              <li><Link href="/login" className="hover:text-gray-900 dark:hover:text-white">Sign in</Link></li>
-              <li><Link href="/signup" className="hover:text-gray-900 dark:hover:text-white">Sign up</Link></li>
-            </ul>
-          </div>
+    <footer className="mt-auto border-t border-border bg-page text-center lg:text-left">
+      <div className="mx-auto grid w-full max-w-6xl grid-cols-2 gap-10 px-4 py-14 sm:px-6 lg:grid-cols-[1.4fr_repeat(3,1fr)]">
+        <div className="col-span-2 flex flex-col items-center gap-3 lg:col-span-1 lg:items-start">
+          <Logo wordmark="h-14" />
+          <p className="max-w-xs text-sm text-muted">
+            Long-form writing that lasts. Read deep dives, publish your own stories and grow an audience.
+          </p>
         </div>
-        <div className="border-t border-gray-200 dark:border-gray-800 pt-6 text-sm text-gray-500 dark:text-gray-400">
-          © {new Date().getFullYear()} TechScribe. All rights reserved.
+        {COLUMNS.map((column) => (
+          <nav key={column.title} aria-label={column.title} className="flex flex-col items-center gap-3 text-sm lg:items-start">
+            <h2 className="text-muted">{column.title}</h2>
+            {column.links.map(({ href, label }) => (
+              <Link key={href} href={href} className="transition-colors hover:text-muted">
+                {label}
+              </Link>
+            ))}
+          </nav>
+        ))}
+      </div>
+      <div className="border-t border-border">
+        <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-4 px-4 py-6 text-xs text-muted sm:px-6 lg:flex-row lg:items-center lg:justify-between">
+          <p>© {new Date().getFullYear()} Nystara. All rights reserved.</p>
+          <FooterThemePicker />
         </div>
       </div>
     </footer>

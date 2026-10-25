@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getVerifiedAdminSession } from "@/lib/admin-auth";
 import { readJson } from "@/lib/request";
+import { THEMES } from "@/lib/theme";
 
 const schema = z.object({
-  theme: z.enum(["light", "dark", "system"]),
+  theme: z.enum(THEMES),
 });
 
 export async function POST(req: NextRequest) {

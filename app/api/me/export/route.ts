@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Invalid export section or cursor" }, { status: 400 });
   }
   audit("data_export", "success");
-  const headers = { "Cache-Control": "private, no-store", "Content-Disposition": 'attachment; filename="techscribe-export.json"' };
+  const headers = { "Cache-Control": "private, no-store", "Content-Disposition": 'attachment; filename="nystara-export.json"' };
   if (!section) {
     const user = await prisma.user.findUnique({
       where: { id: userId },

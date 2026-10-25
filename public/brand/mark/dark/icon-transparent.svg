@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" role="img" aria-label="Nystara"><title>Nystara orbital app icon</title><defs>
+      <linearGradient id="word-gradient" x1="0" y1="0" x2="0" y2="1"><stop class="ink-top" stop-color="#FFFFFF"/><stop class="ink-bottom" offset="1" stop-color="#B8C2D8"/></linearGradient>
+      <linearGradient id="cyan-ring"><stop stop-color="#27D9FF"/><stop offset=".28" stop-color="#27D9FF" stop-opacity=".55"/><stop offset=".78" stop-color="#27D9FF"/><stop offset="1" stop-color="#27D9FF"/></linearGradient>
+      <linearGradient id="violet-ring"><stop stop-color="#B764FF"/><stop offset=".4" stop-color="#B764FF" stop-opacity=".7"/><stop offset="1" stop-color="#B764FF"/></linearGradient>
+      <filter id="glow" x="-50%" y="-100%" width="200%" height="300%"><feGaussianBlur stdDeviation="3"/></filter>
+      <filter id="star-glow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="4"/></filter>
+    </defs><g class="cyan-motion"><g transform="rotate(28 200 200)">
+          <ellipse cx="200" cy="200" rx="142" ry="36" fill="none" stroke="#27D9FF" stroke-width="12" opacity=".30" filter="url(#glow)"/>
+          <ellipse cx="200" cy="200" rx="142" ry="36" fill="none" stroke="url(#cyan-ring)" stroke-width="6"/>
+        </g></g><g class="violet-motion"><g transform="rotate(-43 200 200)">
+          <ellipse cx="200" cy="200" rx="142" ry="36" fill="none" stroke="#B764FF" stroke-width="12" opacity=".30" filter="url(#glow)"/>
+          <ellipse cx="200" cy="200" rx="142" ry="36" fill="none" stroke="url(#violet-ring)" stroke-width="6"/>
+        </g></g><path d="M 200 182 Q 203.06 196.94 218 200 Q 203.06 203.06 200 218 Q 196.94 203.06 182 200 Q 196.94 196.94 200 182 Z" fill="#FFFFFF" opacity=".5" filter="url(#star-glow)"/><path d="M 200 182 Q 203.06 196.94 218 200 Q 203.06 203.06 200 218 Q 196.94 203.06 182 200 Q 196.94 196.94 200 182 Z" fill="#FFFFFF"/><circle cx="200" cy="200" r="2.4000000000000004" fill="#FFFFFF"/></svg>

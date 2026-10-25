@@ -2,17 +2,8 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import UserMenu from "@/components/layout/UserMenu";
-
-function PencilLogoIcon() {
-  return (
-    <svg width="26" height="26" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-      <rect width="28" height="28" rx="6" fill="#111827" />
-      <path d="M7 9h14M7 14h10M7 19h12" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
+import { Logo } from "@/components/brand/Logo";
 
 function BellIcon() {
   return (
@@ -91,10 +82,7 @@ export default function StoryEditor({ name, email, avatarUrl, username }: Props)
     <div className="min-h-screen bg-white dark:bg-gray-950 flex flex-col">
       <header className="flex items-center justify-between px-8 py-4 border-b border-gray-100 dark:border-gray-900">
         <div className="flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-2 font-bold text-xl tracking-tight text-gray-900 dark:text-white">
-            <PencilLogoIcon />
-            TechScribe
-          </Link>
+          <Logo wordmark="h-8" />
           <span className="text-sm text-gray-400 dark:text-gray-500">Draft</span>
         </div>
 

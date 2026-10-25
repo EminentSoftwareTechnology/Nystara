@@ -28,16 +28,14 @@ export default function FeedTabs({ articles, featured }: Props) {
 
   return (
     <div>
-      <div className="flex gap-6 border-b border-gray-200 dark:border-gray-800 mb-2">
+      <div className="flex gap-6 border-b border-border mb-2">
         {(["for-you", "featured"] as const).map((t) => (
           <button
             key={t}
+            type="button"
+            aria-pressed={tab === t}
             onClick={() => setTab(t)}
-            className={`pb-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              tab === t
-                ? "border-gray-900 dark:border-white text-gray-900 dark:text-white"
-                : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-            }`}
+            className="pb-3 text-sm font-medium border-b-2 -mb-px transition-colors border-transparent text-muted hover:text-foreground aria-pressed:border-foreground aria-pressed:text-foreground"
           >
             {t === "for-you" ? "For you" : "Featured"}
           </button>
@@ -45,9 +43,9 @@ export default function FeedTabs({ articles, featured }: Props) {
       </div>
 
       {list.length === 0 ? (
-        <p className="py-10 text-center text-gray-500 dark:text-gray-400 text-sm">No articles yet.</p>
+        <p className="py-10 text-center text-muted text-sm">No articles yet.</p>
       ) : (
-        <div className="divide-y divide-gray-100 dark:divide-gray-800">
+        <div className="divide-y divide-border">
           {list.map((article) => (
             <ArticleCard key={article.id} article={article} />
           ))}

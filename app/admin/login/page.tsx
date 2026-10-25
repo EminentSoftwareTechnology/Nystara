@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import { DarkWordmark } from "@/components/brand/Logo";
 
 const TurnstileWidget = dynamic(() => import("@/components/auth/TurnstileWidget"), { ssr: false });
 
@@ -44,11 +45,8 @@ export default function AdminLoginPage() {
       <div className="flex-1 flex flex-col items-center justify-center px-4">
         <div className="w-full max-w-sm">
           <div className="flex items-center justify-center gap-2 mb-8">
-            <svg width="32" height="32" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-              <rect width="28" height="28" rx="6" fill="#fff" />
-              <path d="M7 9h14M7 14h10M7 19h12" stroke="#111827" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-            <span className="text-white font-bold text-xl">TechScribe Admin</span>
+            <DarkWordmark className="h-10" />
+            <span className="text-gray-400 font-medium text-sm">Admin</span>
           </div>
 
           <div className="bg-gray-900 rounded-xl border border-gray-800 p-8">

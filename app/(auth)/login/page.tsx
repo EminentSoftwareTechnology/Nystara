@@ -90,7 +90,7 @@ export default function LoginPage() {
 
   return (
     <div className="w-full max-w-sm">
-      <h1 className="text-2xl font-bold mb-1">Sign in to TechScribe</h1>
+      <h1 className="text-2xl font-bold mb-1">Sign in to Nystara</h1>
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">
         Don&apos;t have an account?{" "}
         <Link

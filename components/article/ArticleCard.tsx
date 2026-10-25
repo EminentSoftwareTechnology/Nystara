@@ -34,7 +34,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
               className="rounded-full"
             />
           ) : (
-            <div className="w-6 h-6 rounded-full bg-gray-300 flex-shrink-0" />
+            <div className="w-6 h-6 rounded-full bg-surface-2 flex-shrink-0" />
           )}
           <Link
             href={authorHandle ? `/${authorHandle}` : "#"}
@@ -43,7 +43,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
             {article.author.name ?? article.author.username}
           </Link>
           {article.publishedAt && (
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-muted">
               ·{" "}
               {new Date(article.publishedAt).toLocaleDateString("en-US", {
                 month: "short",
@@ -54,20 +54,20 @@ export default function ArticleCard({ article }: ArticleCardProps) {
         </div>
 
         <Link href={href} className="group">
-          <h2 className="text-xl font-bold leading-snug group-hover:underline line-clamp-2">
+          <h2 className="text-xl font-semibold tracking-tight leading-snug group-hover:underline line-clamp-2">
             {article.title}
           </h2>
           {article.subtitle && (
-            <p className="mt-1 text-gray-600 line-clamp-2 text-sm">
+            <p className="mt-1 text-muted line-clamp-2 text-sm leading-6">
               {article.subtitle}
             </p>
           )}
         </Link>
 
-        <div className="mt-3 flex items-center gap-3 text-sm text-gray-500">
+        <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-muted">
           <span>{article.readTime} min read</span>
           {article.memberOnly && (
-            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+            <span className="inline-flex items-center rounded-full border border-border bg-surface px-2.5 py-0.5 text-xs font-medium text-foreground">
               Member
             </span>
           )}
@@ -90,7 +90,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
             alt={article.title}
             width={112}
             height={112}
-            className="object-cover rounded w-28 h-28"
+            className="object-cover rounded-xl border border-border w-28 h-28"
           />
         </Link>
       )}
