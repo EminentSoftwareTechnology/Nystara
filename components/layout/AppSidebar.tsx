@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Logo } from "@/components/brand/Logo";
 
 type Props = {
   username: string | null;
@@ -92,13 +93,7 @@ export default function AppSidebar({ username }: Props) {
     <aside className="fixed inset-y-0 left-0 z-40 w-64 flex flex-col bg-white dark:bg-gray-950 border-r border-gray-200 dark:border-gray-800">
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-5 h-14 flex-shrink-0">
-        <Link href="/" className="flex items-center gap-2 font-bold text-xl tracking-tight text-gray-900 dark:text-white">
-          <svg width="26" height="26" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-            <rect width="28" height="28" rx="6" fill="#111827" />
-            <path d="M7 9h14M7 14h10M7 19h12" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
-          </svg>
-          TechScribe
-        </Link>
+        <Logo wordmark="h-8" />
       </div>
 
       {/* Search */}

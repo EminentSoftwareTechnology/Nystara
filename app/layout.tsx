@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { cookies } from "next/headers";
+import { isExplicitTheme } from "@/lib/theme";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,8 +15,25 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: { default: "TechScribe", template: "%s | TechScribe" },
-  description: "Long-form technical articles for software engineers.",
+  title: { default: "Nystara", template: "%s · Nystara" },
+  description: "Nystara is a blog for long-form writing that lasts. Read deep dives, publish your own stories and build an audience.",
+  applicationName: "Nystara",
+  icons: {
+    icon: [
+      { url: "/brand/favicon/light/favicon.svg", type: "image/svg+xml", media: "(prefers-color-scheme: light)" },
+      { url: "/brand/favicon/dark/favicon.svg", type: "image/svg+xml", media: "(prefers-color-scheme: dark)" },
+    ],
+    apple: "/brand/apple-touch-icon.png",
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#000000" },
+  ],
 };
 
 export default async function RootLayout({
@@ -23,20 +41,17 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const cookieStore = await cookies();
-  const themeCookie = cookieStore.get("theme")?.value;
-
-  let themeClass = "";
-  if (themeCookie === "dark") themeClass = "dark";
-  else if (themeCookie === "light") themeClass = "light";
-  // "system" or unset: no class, CSS media query handles it
+  const themeCookie = (await cookies()).get("theme")?.value;
+  // "system" or unset: no attribute, CSS media queries follow the OS.
+  const theme = isExplicitTheme(themeCookie) ? themeCookie : undefined;
 
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased${themeClass ? ` ${themeClass}` : ""}`}
+      data-theme={theme}
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col font-sans">{children}</body>
     </html>
   );
 }

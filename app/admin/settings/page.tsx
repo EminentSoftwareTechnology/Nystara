@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-
-type Theme = "light" | "dark" | "system";
+import { type Theme, isExplicitTheme } from "@/lib/theme";
 
 const themes: { value: Theme; label: string; description: string }[] = [
   { value: "light", label: "Light", description: "Always use the light theme" },
   { value: "dark", label: "Dark", description: "Always use the dark theme" },
+  { value: "sand", label: "Sand", description: "A warm, paper-like light theme" },
   { value: "system", label: "System", description: "Follow your OS preference" },
 ];
 
@@ -17,7 +17,7 @@ export default function SettingsPage() {
       .split(";")
       .find((c) => c.trim().startsWith("theme="))
       ?.split("=")[1];
-    return (stored as Theme | undefined) ?? "system";
+    return isExplicitTheme(stored) ? stored : "system";
   });
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
@@ -33,18 +33,8 @@ export default function SettingsPage() {
 
     if (res.ok) {
       // Apply theme immediately
-      const root = document.documentElement;
-      if (theme === "dark") {
-        root.classList.add("dark");
-      } else if (theme === "light") {
-        root.classList.remove("dark");
-      } else {
-        if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-          root.classList.add("dark");
-        } else {
-          root.classList.remove("dark");
-        }
-      }
+      if (theme === "system") document.documentElement.removeAttribute("data-theme");
+      else document.documentElement.setAttribute("data-theme", theme);
       setMsg("Theme saved.");
     } else {
       setMsg("Failed to save.");
@@ -58,9 +48,9 @@ export default function SettingsPage() {
 
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
         <h2 className="font-semibold text-gray-900 dark:text-white mb-1">Appearance</h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">Choose how TechScribe looks for you.</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">Choose how Nystara looks for you.</p>
 
-        <div className="grid grid-cols-3 gap-3 mb-5">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
           {themes.map((t) => (
             <button
               key={t.value}
@@ -77,6 +67,8 @@ export default function SettingsPage() {
                   ? "bg-white border border-gray-200"
                   : t.value === "dark"
                   ? "bg-gray-900"
+                  : t.value === "sand"
+                  ? "bg-[#f1f0eb] border border-[#d3d1c8]"
                   : "bg-gradient-to-r from-white to-gray-900"
               }`} />
               <p className="text-sm font-medium text-gray-900 dark:text-white">{t.label}</p>

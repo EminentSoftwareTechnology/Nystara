@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
+import { DarkWordmark } from "@/components/brand/Logo";
 
 const navItems = [
   {
@@ -78,12 +79,8 @@ export default function Sidebar() {
   return (
     <aside className="w-60 shrink-0 flex flex-col h-screen sticky top-0 bg-gray-950 text-white border-r border-gray-800">
       <div className="h-16 flex items-center px-5 border-b border-gray-800">
-        <Link href="/admin/dashboard" className="flex items-center gap-2 font-bold text-lg">
-          <svg width="24" height="24" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-            <rect width="28" height="28" rx="6" fill="#fff" />
-            <path d="M7 9h14M7 14h10M7 19h12" stroke="#111827" strokeWidth="2" strokeLinecap="round" />
-          </svg>
-          TechScribe
+        <Link href="/admin/dashboard" className="flex items-center">
+          <DarkWordmark className="h-8" />
         </Link>
       </div>
 

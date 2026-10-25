@@ -1,33 +1,178 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:where(.dark, .dark *));
-
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* `dark:` matches an explicit dark theme, or the OS dark preference when no theme is chosen (system). */
+@custom-variant dark {
+  &:where([data-theme="dark"], [data-theme="dark"] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme]), :root:not([data-theme]) *) {
+      @slot;
+    }
+  }
 }
 
-.dark {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+/*
+ * Nystara design tokens.
+ * Light: white canvas (--page), black text, very light grey cards (--background) and dark-navy buttons.
+ * Dark: black canvas, white text, near-black cards and white buttons.
+ * Sand: a warm, paper-like light theme, only ever chosen explicitly.
+ */
+:root {
+  --page: #ffffff;
+  --background: #f9fafb;
+  --foreground: #000000;
+  --muted: #4b5563;
+  --surface: #f0f2f5;
+  --surface-2: #e4e7ec;
+  --border: #e6e8ec;
+  --border-strong: #c9ced8;
+  --accent: #14224a;
+  --accent-foreground: #ffffff;
+  --danger: #b42318;
+  --wall-a: #d3dcc4;
+  --wall-b: #efe2c4;
+  --wall-c: #c4d0d6;
+  --wall-ink: #7d8f6c;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --page: #000000;
+    --background: #121212;
+    --foreground: #ffffff;
+    --muted: #b5b5b5;
+    --surface: #1c1c1c;
+    --surface-2: #2a2a2a;
+    --border: #2a2a2a;
+    --border-strong: #404040;
+    --accent: #ffffff;
+    --accent-foreground: #000000;
+    --danger: #ff8a7a;
+    --wall-a: #1f2a22;
+    --wall-b: #2b261c;
+    --wall-c: #18242c;
+    --wall-ink: #3b4a38;
+  }
+}
+
+:root[data-theme="dark"] {
+  --page: #000000;
+  --background: #121212;
+  --foreground: #ffffff;
+  --muted: #b5b5b5;
+  --surface: #1c1c1c;
+  --surface-2: #2a2a2a;
+  --border: #2a2a2a;
+  --border-strong: #404040;
+  --accent: #ffffff;
+  --accent-foreground: #000000;
+  --danger: #ff8a7a;
+  --wall-a: #1f2a22;
+  --wall-b: #2b261c;
+  --wall-c: #18242c;
+  --wall-ink: #3b4a38;
+}
+
+:root[data-theme="sand"] {
+  --page: #f7f7f4;
+  --background: #f1f0eb;
+  --foreground: #26251e;
+  --muted: #67665e;
+  --surface: #ecebe5;
+  --surface-2: #e3e2db;
+  --border: #e6e5df;
+  --border-strong: #d3d1c8;
+  --accent: #26251e;
+  --accent-foreground: #f7f7f4;
+  --danger: #a8321f;
+  --wall-a: #d0d8bd;
+  --wall-b: #f0e3c4;
+  --wall-c: #c6d1d3;
+  --wall-ink: #85956f;
 }
 
 @theme inline {
+  --color-page: var(--page);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-danger: var(--danger);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not(.light) {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: light dark;
+}
+
+:root[data-theme="light"],
+:root[data-theme="sand"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
+  background: var(--page);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Media with a light, dark and sand version: show the one for the active theme. */
+.theme-light-only {
+  display: block;
+}
+
+.theme-dark-only,
+.theme-sand-only {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .theme-light-only {
+    display: none;
+  }
+
+  :root:not([data-theme]) .theme-dark-only {
+    display: block;
+  }
+}
+
+:root[data-theme="dark"] .theme-light-only,
+:root[data-theme="sand"] .theme-light-only {
+  display: none;
+}
+
+:root[data-theme="dark"] .theme-dark-only,
+:root[data-theme="sand"] .theme-sand-only {
+  display: block;
+}
+
+::selection {
+  background: var(--foreground);
+  color: var(--background);
+}
+
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--foreground);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
