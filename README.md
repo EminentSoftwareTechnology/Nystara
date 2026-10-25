@@ -117,6 +117,8 @@ PORT=6001 ./start.sh dev
 ./start.sh --help
 ```
 
+For demo content, `npm run db:seed:demo` creates 50 users (`user1@gmail.com` … `user50@gmail.com`, usernames `user1` … `user50`) plus 10 published stories with tags, claps, comments, bookmarks and follows. Sign in as any of them with the magic link from Mailpit. It is safe to re-run and refuses to run when `NODE_ENV=production`.
+
 `HOST` defaults to `127.0.0.1`. Set it explicitly if LAN access is required. If you override `PORT`, set `NEXTAUTH_URL` to the same local origin so same-origin write checks continue to pass. Remote databases require `ALLOW_REMOTE_MIGRATE=1`; startup never resets or seeds them automatically. `prod` builds locally and requires production CAPTCHA keys and Redis. Keep development infrastructure credentials for local use only.
 
 ## Docker
