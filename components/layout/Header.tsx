@@ -59,22 +59,22 @@ export default function Header({ signedIn }: { signedIn: boolean }) {
 
   return (
     <>
-      <header className="sticky top-0 z-40 border-b border-border bg-page/85 backdrop-blur">
-        <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-6 px-4 sm:px-6">
-          <Logo wordmark="h-9 sm:h-10" />
-          <nav aria-label="Site" className="hidden items-center gap-1 lg:flex">
+      <header className="sticky top-0 z-40 px-3 pt-3 sm:px-4">
+        <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-6 rounded-full border border-border bg-page/80 pl-5 pr-2 shadow-[0_10px_30px_-20px_rgba(0,0,0,0.35)] backdrop-blur-md">
+          <Logo wordmark="h-8 sm:h-9" />
+          <nav aria-label="Site" className="hidden items-center gap-0.5 rounded-full bg-surface/70 p-1 lg:flex">
             {SITE_LINKS.map(({ href, label }) => (
               <Link
                 key={href}
                 href={href}
                 aria-current={pathname === href ? "page" : undefined}
-                className="rounded-full px-3 py-2 text-sm text-muted transition-colors hover:text-foreground aria-[current=page]:text-foreground"
+                className="rounded-full px-3.5 py-1.5 text-sm text-muted transition-colors hover:text-foreground aria-[current=page]:bg-page aria-[current=page]:text-foreground aria-[current=page]:shadow-sm"
               >
                 {label}
               </Link>
             ))}
           </nav>
-          <div className="hidden items-center gap-3 lg:flex">
+          <div className="hidden items-center gap-2 lg:flex">
             <ThemeToggle />
             <Link href={secondary.href} className={buttonClass("ghost", "sm")}>
               {secondary.label}
@@ -90,7 +90,7 @@ export default function Header({ signedIn }: { signedIn: boolean }) {
             aria-controls="mobile-menu"
             aria-label="Open menu"
             onClick={() => setOpen(true)}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background hover:bg-surface lg:hidden"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background hover:bg-surface lg:hidden"
           >
             <MenuIcon />
           </button>

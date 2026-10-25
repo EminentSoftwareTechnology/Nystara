@@ -16,6 +16,7 @@ import { commentSelect, toCommentView } from "@/lib/comments";
 import { toStoryTheme } from "@/lib/story-theme";
 import AppShell from "@/components/layout/AppShell";
 import StoryContent from "@/components/article/StoryContent";
+import { buttonClass } from "@/components/ui";
 import ArticleHero from "@/components/article/ArticleHero";
 import ShareBar from "@/components/article/ShareBar";
 import ArticleFeedback from "@/components/article/ArticleFeedback";
@@ -157,14 +158,16 @@ export default async function ArticlePage({ params }: Props) {
             />
 
             {paywalled && (
-              <div className="mt-10 rounded-2xl border border-border bg-background px-6 py-10 text-center">
-                <h2 className="mb-2 text-2xl font-bold">This story is for members only</h2>
+              <div className="mt-10 rounded-3xl border border-border bg-background px-6 py-10 text-center">
+                <h2 className="mb-2 font-display text-3xl font-medium tracking-tight">
+                  This story is for members only
+                </h2>
                 <p className="mb-6 text-muted">
                   Become a member to read the full story and support the author.
                 </p>
                 <Link
                   href="/subscribe"
-                  className="inline-block rounded-full bg-accent px-8 py-3 font-medium text-accent-foreground"
+                  className={buttonClass("primary", "lg")}
                 >
                   Become a member
                 </Link>

@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowRightIcon, BookIcon, ChatIcon, CheckIcon, SparkIcon, UsersIcon } from "@/components/icons";
-import { Heading, PageIntro } from "@/components/marketing/Heading";
+import { BookIcon, ChatIcon, CheckIcon, SparkIcon, UsersIcon } from "@/components/icons";
+import { Eyebrow, Heading, PageIntro } from "@/components/marketing/Heading";
 import { Wall } from "@/components/marketing/Wall";
-import { CARD, SECTION, buttonClass } from "@/components/ui";
+import { TILE, SECTION } from "@/components/ui";
 
 export const metadata: Metadata = {
   title: "Why blog",
@@ -59,9 +58,11 @@ export default function WhyBlogPage() {
         <Heading eyebrow="The case for writing" id="reasons" title="Four reasons to start a blog this year." />
         <div className="grid gap-3 sm:grid-cols-2">
           {REASONS.map(({ Icon, title, body }) => (
-            <div key={title} className={`${CARD} flex flex-col gap-2.5 p-6`}>
-              <Icon className="text-muted" />
-              <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
+            <div key={title} className={`${TILE} flex flex-col gap-3 p-7`}>
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-2">
+                <Icon size={19} />
+              </span>
+              <h3 className="font-display text-2xl font-medium tracking-tight">{title}</h3>
               <p className="text-sm leading-6 text-muted">{body}</p>
             </div>
           ))}
@@ -71,8 +72,8 @@ export default function WhyBlogPage() {
       <section aria-labelledby="why-nystara" className={SECTION}>
         <div className="grid items-center gap-8 lg:grid-cols-[1fr_1.2fr] lg:gap-12">
           <div className="flex flex-col gap-4">
-            <p className="text-sm text-muted">Why Nystara</p>
-            <h2 id="why-nystara" className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
+            <Eyebrow>Why Nystara</Eyebrow>
+            <h2 id="why-nystara" className="font-display text-3xl font-medium tracking-tight text-balance sm:text-4xl">
               Built for depth, not for the scroll.
             </h2>
             <p className="leading-7 text-muted">
@@ -108,8 +109,8 @@ export default function WhyBlogPage() {
         <Heading eyebrow="Getting started" id="start" title="From blank page to published in four steps." />
         <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {STEPS.map((step, i) => (
-            <li key={step.title} className={`${CARD} flex flex-col gap-2 p-5`}>
-              <span className="text-3xl font-semibold tracking-tight text-muted">{i + 1}</span>
+            <li key={step.title} className={`${TILE} flex flex-col gap-2 p-6`}>
+              <span className="font-display text-5xl font-medium tracking-tight text-muted">{i + 1}</span>
               <h3 className="font-semibold">{step.title}</h3>
               <p className="text-sm leading-6 text-muted">{step.body}</p>
             </li>
@@ -117,17 +118,6 @@ export default function WhyBlogPage() {
         </ol>
       </section>
 
-      <section className="mx-auto flex w-full max-w-6xl flex-col items-center gap-6 px-4 pb-24 pt-10 text-center sm:px-6">
-        <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Your first story is the hardest. Start it today.</h2>
-        <div className="flex flex-wrap justify-center gap-3">
-          <Link href="/signup" className={buttonClass("primary", "lg")}>
-            Start writing <ArrowRightIcon size={16} />
-          </Link>
-          <Link href="/features" className={buttonClass("secondary", "lg")}>
-            Explore features
-          </Link>
-        </div>
-      </section>
     </div>
   );
 }

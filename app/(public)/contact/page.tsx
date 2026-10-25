@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { MailIcon } from "@/components/icons";
 import { PageIntro } from "@/components/marketing/Heading";
-import { CARD, SECTION } from "@/components/ui";
+import { CARD, TILE, SECTION } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Contact" };
 
@@ -21,8 +21,10 @@ export default function ContactPage() {
       <section className={SECTION}>
         <ul className="grid gap-3 sm:grid-cols-3">
           {CHANNELS.map(({ title, email }) => (
-            <li key={email} className={`${CARD} flex items-start gap-3 p-6`}>
-              <MailIcon className="mt-0.5 shrink-0 text-muted" />
+            <li key={email} className={`${TILE} flex flex-col items-start gap-4 p-6`}>
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-2">
+                <MailIcon size={19} />
+              </span>
               <div className="flex flex-col gap-1">
                 <h2 className="font-semibold">{title}</h2>
                 <a href={`mailto:${email}`} className="text-sm text-muted underline underline-offset-4 hover:text-foreground">

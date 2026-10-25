@@ -27,8 +27,17 @@ function formatDate(value: string) {
   return new Date(value).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
-/** Authenticator app, passkeys and recovery codes. `apiBase` is `/api/me/security` or `/api/admin/security`. */
-export default function SecuritySettings({ apiBase }: { apiBase: string }) {
+/**
+ * Authenticator app, passkeys and recovery codes. `apiBase` is `/api/me/security` or `/api/admin/security`.
+ * `onReadyChange` reports whether a second factor is on and any new recovery codes have been acknowledged.
+ */
+export default function SecuritySettings({
+  apiBase,
+  onReadyChange,
+}: {
+  apiBase: string;
+  onReadyChange?: (ready: boolean) => void;
+}) {
   const [status, setStatus] = useState<Status | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -49,6 +58,10 @@ export default function SecuritySettings({ apiBase }: { apiBase: string }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- initial fetch
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (status) onReadyChange?.(status.mfaEnabled && !recoveryCodes);
+  }, [status, recoveryCodes, onReadyChange]);
 
   function start() {
     setBusy(true);

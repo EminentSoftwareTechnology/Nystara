@@ -39,14 +39,14 @@ async function request(path: string, cookie?: string, method = "GET", body?: obj
 before(async () => {
   const hash = await bcrypt.hash("review-password-1234", 12);
   const admin = await prisma.user.create({ data: { email: "admin-review@example.test", username: "review-admin", role: "ADMIN", passwordHash: hash } });
-  const user = await prisma.user.create({ data: { email: "user-review@example.test", username: "review-user" } });
-  const other = await prisma.user.create({ data: { email: "other-review@example.test", username: "review-other" } });
+  const user = await prisma.user.create({ data: { email: "user-review@example.test", username: "review-user", name: "Review User", mfaEnabled: true } });
+  const other = await prisma.user.create({ data: { email: "other-review@example.test", username: "review-other", name: "Review Other", mfaEnabled: true } });
   adminId = admin.id; userId = user.id; otherId = other.id;
   createdUsers.push(adminId, userId, otherId);
   const session = randomUUID(); const otherSession = randomUUID();
   await prisma.session.createMany({ data: [
-    { userId, sessionToken: session, expires: new Date(Date.now() + 3600_000) },
-    { userId: otherId, sessionToken: otherSession, expires: new Date(Date.now() + 3600_000) },
+    { userId, sessionToken: session, expires: new Date(Date.now() + 3600_000), mfaVerifiedAt: new Date() },
+    { userId: otherId, sessionToken: otherSession, expires: new Date(Date.now() + 3600_000), mfaVerifiedAt: new Date() },
   ] });
   userCookie = `authjs.session-token=${session}`;
   otherCookie = `authjs.session-token=${otherSession}`;

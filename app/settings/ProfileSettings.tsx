@@ -45,6 +45,7 @@ export default function ProfileSettings({
           Display name
           <input
             value={name}
+            required
             maxLength={100}
             onChange={(event) => setName(event.target.value)}
             className="mt-2 block w-full rounded-lg border border-border bg-page p-3"

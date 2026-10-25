@@ -14,9 +14,15 @@ import { Logo } from "@/components/brand/Logo";
 import { VideoNode } from "@/components/editor/video-extension";
 import Ribbon from "@/components/editor/Ribbon";
 import { prepareImage } from "@/components/editor/prepare-image";
-import { legacyDocument, safeLink } from "@/lib/story-document";
+import { safeLink } from "@/lib/story-document";
 import type { StoryTheme } from "@/lib/story-theme";
-import { AI_ACTIONS } from "@/lib/ai-editor";
+import {
+  type LocalDraft,
+  clearLocalDraft,
+  localDraftKey,
+  readLocalDraft,
+  writeLocalDraft,
+} from "@/lib/local-draft";
 
 type Draft = { id: string; slug: string; author: { username: string | null } };
 export type InitialStory = Draft & {
@@ -25,6 +31,8 @@ export type InitialStory = Draft & {
   content: JSONContent;
   memberOnly: boolean;
   coverImage: string | null;
+  /** ISO time of the last server save; a newer copy in this browser wins over it. */
+  updatedAt: string;
   theme: StoryTheme;
 };
 type Props = {
@@ -32,7 +40,6 @@ type Props = {
   email: string | null;
   avatarUrl: string | null;
   username: string | null;
-  premium: boolean;
   initial?: InitialStory;
 };
 const control =
@@ -43,7 +50,6 @@ export default function StoryEditor({
   email,
   avatarUrl,
   username,
-  premium,
   initial,
 }: Props) {
   const router = useRouter();
@@ -59,10 +65,6 @@ export default function StoryEditor({
   const [status, setStatus] = useState(initial ? "Saved draft" : "New draft");
   const [error, setError] = useState("");
   const [words, setWords] = useState(0);
-  const [aiOpen, setAiOpen] = useState(false);
-  const [aiBusy, setAiBusy] = useState(false);
-  const [aiAction, setAiAction] = useState<keyof typeof AI_ACTIONS>("polish");
-  const [suggestion, setSuggestion] = useState("");
   const [video, setVideo] = useState("");
   const [videoOpen, setVideoOpen] = useState(false);
   const [videoBusy, setVideoBusy] = useState(false);
@@ -71,16 +73,14 @@ export default function StoryEditor({
   const [alt, setAlt] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const uploadAsCover = useRef(false);
-  const revision = useRef(0);
-  const [aiSelection, setAiSelection] = useState<{
-    from: number;
-    to: number;
-    revision: number;
-  } | null>(null);
+  // Unpublished writing is mirrored to this browser so a closed tab or crash never loses it.
+  const storageKey = localDraftKey(email ?? username ?? "anonymous", initial?.id ?? null);
+  const [localRevision, setLocalRevision] = useState(0);
+  const restored = useRef(false);
   function changed() {
-    revision.current++;
     setDirty(true);
     setStatus("Unsaved changes");
+    setLocalRevision((r) => r + 1);
   }
 
   const editor = useEditor({
@@ -116,6 +116,40 @@ export default function StoryEditor({
       setWords(current.getText().trim().split(/\s+/).filter(Boolean).length);
     },
   });
+
+  useEffect(() => {
+    if (!editor || restored.current) return;
+    restored.current = true;
+    const saved = readLocalDraft(storageKey);
+    if (!saved || (initial && saved.savedAt <= Date.parse(initial.updatedAt))) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time restore once the editor exists
+    setTitle(saved.title);
+    setSubtitle(saved.subtitle);
+    setMemberOnly(saved.memberOnly);
+    setCoverImage(saved.coverImage);
+    if (!initial && saved.draft) setDraft(saved.draft);
+    editor.commands.setContent(saved.content, { emitUpdate: false });
+    setWords(editor.getText().trim().split(/\s+/).filter(Boolean).length);
+    setDirty(true);
+    setStatus(saved.draft ? "Resumed your draft" : "Restored your unsaved writing");
+  }, [editor, initial, storageKey]);
+
+  useEffect(() => {
+    if (!editor || localRevision === 0 || !dirty) return;
+    const timer = window.setTimeout(() => {
+      const copy: LocalDraft = {
+        draft,
+        title,
+        subtitle,
+        content: editor.getJSON(),
+        memberOnly,
+        coverImage,
+        savedAt: Date.now(),
+      };
+      writeLocalDraft(storageKey, copy);
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [editor, localRevision, dirty, draft, title, subtitle, memberOnly, coverImage, storageKey]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -166,12 +200,22 @@ export default function StoryEditor({
       setDraft(article);
       setDirty(false);
       setStatus("Saved draft");
+      // An existing story's browser copy is no longer needed once the server has it. /new-story keeps its copy,
+      // now linked to the saved draft, so reopening /new-story resumes it until it is published.
+      if (initial) clearLocalDraft(storageKey);
+      else
+        writeLocalDraft(storageKey, {
+          ...payload,
+          draft: article,
+          savedAt: Date.now(),
+        });
       if (!publish) return;
       const published = await fetch(`/api/articles/${article.id}/publish`, {
         method: "POST",
       });
       if (!published.ok)
         throw new Error("Draft saved. Publishing failed; please retry.");
+      clearLocalDraft(storageKey);
       router.push(
         article.author.username
           ? `/${article.author.username}/${article.slug}`
@@ -275,71 +319,6 @@ export default function StoryEditor({
     }
   }
 
-  async function askAi() {
-    if (!editor) return;
-    const { from, to } = editor.state.selection;
-    const text =
-      from === to
-        ? editor.getText() || title
-        : editor.state.doc.textBetween(from, to, "\n");
-    if (!text.trim() || text.length > 12000) {
-      setError(
-        "Select a passage of up to 12,000 characters, or write a shorter draft first.",
-      );
-      return;
-    }
-    setAiSelection({ from, to, revision: revision.current });
-    setAiBusy(true);
-    setSuggestion("");
-    setError("");
-    try {
-      const response = await fetch("/api/ai/editor", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: aiAction, text }),
-      });
-      const result = (await response.json()) as {
-        text?: string;
-        error?: string;
-      };
-      if (!response.ok || !result.text)
-        throw new Error(result.error ?? "AI request failed.");
-      setSuggestion(result.text);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "AI request failed.");
-    } finally {
-      setAiBusy(false);
-    }
-  }
-
-  function applySuggestion(replace: boolean) {
-    if (!editor || !suggestion) return;
-    const selection = aiSelection;
-    if (
-      replace &&
-      (!selection ||
-        selection.from === selection.to ||
-        revision.current !== selection.revision)
-    ) {
-      setError(
-        "The passage has changed. Request a new suggestion before replacing it.",
-      );
-      return;
-    }
-    const content = legacyDocument(suggestion).content ?? [];
-    editor
-      .chain()
-      .focus()
-      .insertContentAt(
-        replace && selection
-          ? { from: selection.from, to: selection.to }
-          : editor.state.doc.content.size,
-        content,
-      )
-      .run();
-    setSuggestion("");
-  }
-
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-page px-4 py-4 sm:px-8">
@@ -348,6 +327,28 @@ export default function StoryEditor({
           <span role="status" className="text-xs text-muted">
             {status}
           </span>
+          {!initial && (draft || dirty) && (
+            <button
+              type="button"
+              className="text-xs text-muted underline underline-offset-4 hover:text-foreground"
+              disabled={busy}
+              onClick={() => {
+                // The saved server draft stays in Stories; only this browser's copy is cleared.
+                clearLocalDraft(storageKey);
+                setDraft(null);
+                setTitle("");
+                setSubtitle("");
+                setMemberOnly(false);
+                setCoverImage(null);
+                editor?.commands.clearContent(false);
+                setWords(0);
+                setDirty(false);
+                setStatus("New draft");
+              }}
+            >
+              Start a new story
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <Link href="/me/stories" className="text-sm underline">
@@ -391,17 +392,11 @@ export default function StoryEditor({
               Shape your story, one paragraph at a time.
             </p>
           </div>
-          <button
-            className={control}
-            onClick={() => setAiOpen(!aiOpen)}
-            aria-expanded={aiOpen}
-          >
-            AI editor · Premium
-          </button>
+          <Link href="/ai-editor" className={control}>
+            Open the AI editor
+          </Link>
         </div>
-        <div
-          className={`grid items-start gap-5 ${aiOpen ? "xl:grid-cols-[minmax(0,1fr)_320px]" : ""}`}
-        >
+        <div className="grid items-start gap-5">
           <section
             className="min-w-0 rounded-xl border border-border bg-page shadow-sm"
             aria-label="Document editor"
@@ -578,103 +573,6 @@ export default function StoryEditor({
               )}
             </footer>
           </section>
-          {aiOpen && (
-            <aside
-              className="rounded-xl border border-border bg-page p-5"
-              aria-label="AI editor"
-            >
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted">
-                Premium writing companion
-              </span>
-              <h2 className="mt-2 text-xl font-semibold">Keep your voice.</h2>
-              <p className="my-3 text-sm leading-6 text-muted">
-                Polish a passage, find a stronger title, or work through your
-                next idea. Review every suggestion before adding it.
-              </p>
-              {premium ? (
-                <>
-                  <label className="text-sm">
-                    Editing action
-                    <select
-                      value={aiAction}
-                      onChange={(event) =>
-                        setAiAction(
-                          event.target.value as keyof typeof AI_ACTIONS,
-                        )
-                      }
-                      className={`${control} mt-2 w-full`}
-                    >
-                      {Object.keys(AI_ACTIONS).map((action) => (
-                        <option key={action} value={action}>
-                          {action[0].toUpperCase() + action.slice(1)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <p className="my-3 text-xs leading-5 text-muted">
-                    Select text to edit a passage, or use the draft. Clicking
-                    Generate sends that text to OpenAI. Up to 12,000 characters
-                    and 30 requests per day.
-                  </p>
-                  <button
-                    className={`${control} w-full`}
-                    disabled={aiBusy || busy}
-                    onClick={() => void askAi()}
-                  >
-                    {aiBusy ? "Thinking…" : "Generate suggestion"}
-                  </button>
-                  {suggestion && (
-                    <div className="mt-4">
-                      <label className="text-sm">
-                        Suggestion
-                        <textarea
-                          aria-label="AI suggestion"
-                          value={suggestion}
-                          onChange={(event) =>
-                            setSuggestion(event.target.value)
-                          }
-                          rows={12}
-                          className={`${control} mt-2 w-full`}
-                        />
-                      </label>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        <button
-                          className={control}
-                          disabled={busy}
-                          onClick={() => applySuggestion(false)}
-                        >
-                          Append to story
-                        </button>
-                        <button
-                          className={control}
-                          disabled={
-                            busy ||
-                            !aiSelection ||
-                            aiSelection.from === aiSelection.to
-                          }
-                          onClick={() => applySuggestion(true)}
-                        >
-                          Replace selection
-                        </button>
-                        <button
-                          className={control}
-                          onClick={() => setSuggestion("")}
-                        >
-                          Discard
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <p className="rounded-lg bg-background p-4 text-sm leading-6">
-                  AI editing requires an active premium membership. Premium
-                  billing is not available yet; the document editor is free to
-                  use.
-                </p>
-              )}
-            </aside>
-          )}
         </div>
       </main>
     </div>
