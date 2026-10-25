@@ -1,4 +1,3 @@
-import { notifyUser } from "@/lib/email/notifications";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -14,21 +13,15 @@ export async function DELETE(
   const { id } = await params;
   const comment = await prisma.comment.findFirst({
     where: { id, deletedAt: null },
-    select: { authorId: true, article: { select: { authorId: true } } },
+    select: { authorId: true },
   });
   if (!comment)
     return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (
-    comment.authorId !== session.user.id &&
-    comment.article.authorId !== session.user.id
-  )
+  if (comment.authorId !== session.user.id)
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   await prisma.comment.update({
     where: { id },
     data: { deletedAt: new Date() },
   });
-  if (comment.authorId && comment.authorId !== session.user.id) {
-    await notifyUser(comment.authorId, "comment-removed");
-  }
   return new NextResponse(null, { status: 204 });
 }

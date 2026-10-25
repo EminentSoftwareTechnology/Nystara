@@ -19,7 +19,8 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
   const where = q
     ? {
         OR: [
-          { email: { contains: q, mode: "insensitive" as const } },
+          // Email is encrypted at rest: a full address matches exactly.
+          { email: q },
           { name: { contains: q, mode: "insensitive" as const } },
           { username: { contains: q, mode: "insensitive" as const } },
         ],
@@ -62,7 +63,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
           <input
             name="q"
             defaultValue={q}
-            placeholder="Search by name, email, username…"
+            placeholder="Search by name, username or full email…"
             className="flex-1 px-3 py-2 rounded-lg border border-border-strong bg-background text-sm focus:outline-none focus:ring-2 focus:ring-border-strong"
           />
           <button type="submit" className="px-4 py-2 rounded-full bg-accent text-accent-foreground text-sm font-medium">

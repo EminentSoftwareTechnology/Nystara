@@ -9,6 +9,7 @@ const requiredEnvVars = [
   "DATABASE_URL",
   "NEXTAUTH_URL",
   "NEXTAUTH_SECRET",
+  "DATA_ENCRYPTION_KEY",
 ] as const;
 
 const optionalEnvVars = [

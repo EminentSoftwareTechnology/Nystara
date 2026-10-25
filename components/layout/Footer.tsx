@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Logo } from "@/components/brand/Logo";
 import { ArrowRightIcon } from "@/components/icons";
 import { FooterThemePicker } from "@/components/theme/FooterThemePicker";
+import NewsletterForm from "./NewsletterForm";
 
 const COLUMNS = [
   {
@@ -57,6 +58,9 @@ export default function Footer() {
           <p className="max-w-xs text-sm leading-6 text-muted">
             Long-form writing that lasts. Read deep dives, publish your own stories and grow an audience.
           </p>
+          <div className="mt-4 w-full max-w-sm">
+            <NewsletterForm />
+          </div>
         </div>
         {COLUMNS.map((column) => (
           <nav key={column.title} aria-label={column.title} className="flex flex-col items-center gap-3 text-sm lg:items-start">

@@ -18,18 +18,22 @@ export const EMAIL_EVENTS = {
   "story-deleted": { subject: "A Nystara story was deleted", title: "Your story was removed.", description: "A story associated with your account was deleted. Visit your stories to review your remaining work or contact support with questions.", label: "View your stories", path: "/me/stories", category: "activity", eyebrow: "STORY UPDATE" },
   "comment-received": { subject: "A new response to your Nystara story", title: "Your story started a conversation.", description: "A reader left a comment on your story. Open Nystara to read the response and join the conversation.", label: "Read the response", path: "/me/stories", category: "activity", eyebrow: "FROM YOUR READERS" },
   "reply-received": { subject: "Someone replied to you on Nystara", title: "The conversation continues.", description: "Someone replied to your comment. Open Nystara to read their response.", label: "Read the reply", path: "/me/stories", category: "activity", eyebrow: "IN THE CONVERSATION" },
-  "comment-removed": { subject: "Your Nystara comment was removed", title: "An update on your comment.", description: "The author of a story removed one of your comments. Contact support if you have questions about this change.", label: "Contact support", path: "/contact", category: "activity", eyebrow: "COMMENT UPDATE" },
+  "digest-confirm": { subject: "Confirm your Nystara digest", title: "One click to confirm.", description: "Confirm that you want the Nystara digest at this address. If you didn’t ask for it, ignore this email and nothing more will be sent.", label: "Confirm subscription", path: "/", category: "essential", eyebrow: "CONFIRM YOUR EMAIL" },
+  "digest-daily": { subject: "Today on Nystara", title: "Today on Nystara.", description: "New stories, the most read and what’s trending from the last day.", label: "Read on Nystara", path: "/", category: "digest", eyebrow: "YOUR DAILY DIGEST" },
+  "digest-weekly": { subject: "This week on Nystara", title: "This week on Nystara.", description: "New stories, the most read and what’s trending from the last seven days.", label: "Read on Nystara", path: "/", category: "digest", eyebrow: "YOUR WEEKLY DIGEST" },
+  "digest-monthly": { subject: "This month on Nystara", title: "This month on Nystara.", description: "New stories, the most read and what’s trending from the last month.", label: "Read on Nystara", path: "/", category: "digest", eyebrow: "YOUR MONTHLY DIGEST" },
 } as const;
 
 export type EmailEvent = keyof typeof EMAIL_EVENTS;
+export type DigestSection = { heading: string; items: { title: string; path: string; meta: string }[] };
 export const EMAIL_THEMES = ["light", "dark", "sand"] as const;
 export const EMAIL_PALETTES = {
   light: { page: "#ffffff", card: "#f9fafb", text: "#000000", muted: "#4b5563", border: "#e6e8ec", accent: "#14224a", onAccent: "#ffffff", wall: "#efe2c4" },
-  dark: { page: "#000000", card: "#121212", text: "#ffffff", muted: "#b5b5b5", border: "#2a2a2a", accent: "#ffffff", onAccent: "#000000", wall: "#2b261c" },
+  dark: { page: "#1c1e21", card: "#242529", text: "#eeebe7", muted: "#b7b2ae", border: "#3b3d40", accent: "#ece7df", onAccent: "#2e2823", wall: "#37362f" },
   sand: { page: "#f7f7f4", card: "#f1f0eb", text: "#26251e", muted: "#67665e", border: "#e6e5df", accent: "#26251e", onAccent: "#f7f7f4", wall: "#f0e3c4" },
 } as const;
 
-export type EmailOptions = { name?: string | null; theme?: ExplicitTheme; detail?: string; actionPath?: string; unsubscribeUrl?: string; actionUrl?: string };
+export type EmailOptions = { name?: string | null; theme?: ExplicitTheme; detail?: string; actionPath?: string; unsubscribeUrl?: string; actionUrl?: string; sections?: DigestSection[] };
 
 export function appOrigin(): string {
   const url = new URL(process.env.NEXTAUTH_URL ?? "http://localhost:6100");
@@ -71,6 +75,17 @@ function EmailTemplate({ event, origin, ...options }: EmailOptions & { event: Em
           <Section className="email-pad" style={{ padding: "36px 48px 44px", overflowWrap: "anywhere", wordBreak: "break-word" }}>
             <Text style={{ margin: "0 0 16px", fontSize: "16px", color: colors.text }}>Hello{options.name ? ` ${options.name}` : ""},</Text>
             <Text style={{ margin: "0 0 24px", fontSize: "16px", lineHeight: "26px", color: colors.text }}>{content.description}</Text>
+            {options.sections?.map((section) => (
+              <Section key={section.heading} style={{ margin: "0 0 28px" }}>
+                <Text style={{ margin: "0 0 8px", color: colors.muted, fontSize: "11px", letterSpacing: "2px", fontWeight: 700 }}>{section.heading.toUpperCase()}</Text>
+                {section.items.map((item) => (
+                  <Section key={item.path} style={{ padding: "12px 0", borderTop: `1px solid ${colors.border}` }}>
+                    <Link href={appLink(item.path, origin)} style={{ color: colors.text, fontFamily: "Georgia, 'Times New Roman', serif", fontSize: "20px", lineHeight: "26px", textDecoration: "none" }}>{item.title}</Link>
+                    <Text style={{ margin: "4px 0 0", color: colors.muted, fontSize: "13px", lineHeight: "20px" }}>{item.meta}</Text>
+                  </Section>
+                ))}
+              </Section>
+            ))}
             {options.detail && <Text style={{ padding: "20px", borderLeft: `3px solid ${colors.accent}`, borderRadius: "4px", backgroundColor: colors.page, color: colors.text, fontSize: "16px" }}>{options.detail}</Text>}
             <Button href={action} style={{ backgroundColor: colors.accent, color: colors.onAccent, borderRadius: "999px", padding: "15px 26px", fontSize: "16px", fontWeight: 600, textDecoration: "none" }}>{content.label}</Button>
             {event === "sign-in" && <Text style={{ fontSize: "12px", lineHeight: "20px", marginTop: "24px", color: colors.muted }}>Button not working? <Link href={action} style={linkStyle}>Open your secure sign-in link</Link>. Never forward this email or share your link.</Text>}
@@ -83,9 +98,9 @@ function EmailTemplate({ event, origin, ...options }: EmailOptions & { event: Em
           </Text>
           <Text style={{ fontSize: "12px", lineHeight: "20px", color: colors.muted, margin: "0 0 12px" }}>
             <Link href={appLink("/settings/notifications", origin)} style={linkStyle}>Email preferences</Link>
-            {content.category === "activity" && options.unsubscribeUrl && <>{" · "}<Link href={appLink(options.unsubscribeUrl, origin)} style={linkStyle}>Unsubscribe from activity emails</Link></>}
+            {content.category !== "essential" && options.unsubscribeUrl && <>{" · "}<Link href={appLink(options.unsubscribeUrl, origin)} style={linkStyle}>{content.category === "digest" ? "Unsubscribe from this digest" : "Unsubscribe from activity emails"}</Link></>}
           </Text>
-          <Text style={{ fontSize: "12px", lineHeight: "20px", color: colors.muted, margin: 0 }}>{content.category === "essential" ? "This is an essential account or security message. You can unsubscribe from activity emails in email preferences." : "You’re receiving this because you have a Nystara account and activity emails are enabled."}</Text>
+          <Text style={{ fontSize: "12px", lineHeight: "20px", color: colors.muted, margin: 0 }}>{content.category === "essential" ? "This is an essential account or security message. You can unsubscribe from activity emails in email preferences." : content.category === "digest" ? "You’re receiving this because you subscribed to the Nystara digest." : "You’re receiving this because you have a Nystara account and activity emails are enabled."}</Text>
           <Text style={{ fontSize: "12px", color: colors.muted, margin: "12px 0 0" }}>© {new Date().getUTCFullYear()} Nystara. All rights reserved.</Text>
         </Container>
       </Body>

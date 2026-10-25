@@ -47,7 +47,7 @@ type CommentRow = {
 
 export function toCommentView(
   row: CommentRow,
-  viewer: { userId: string | null; articleAuthorId: string },
+  viewer: { userId: string | null },
 ): CommentView {
   return {
     id: row.id,
@@ -58,8 +58,6 @@ export function toCommentView(
     avatarUrl: row.author?.avatarUrl ?? row.author?.image ?? null,
     guest: !row.authorId,
     parentId: row.parentId,
-    canDelete:
-      viewer.userId !== null &&
-      (viewer.userId === row.authorId || viewer.userId === viewer.articleAuthorId),
+    canDelete: viewer.userId !== null && viewer.userId === row.authorId,
   };
 }

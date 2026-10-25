@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { eraseUserImages } from "@/lib/r2";
 
 // GDPR Art. 17 erasure. Owned rows (articles, comments, claps, bookmarks,
-// follows, sessions, accounts, subscription) cascade at the DB level.
+// follows, sessions, accounts, subscription, digest) cascade at the DB level.
 export async function eraseUser(userId: string, email: string): Promise<void> {
   const sub = await prisma.subscription.findUnique({
     where: { userId },
@@ -19,6 +19,8 @@ export async function eraseUser(userId: string, email: string): Promise<void> {
   await eraseUserImages(userId);
   await prisma.$transaction([
     prisma.verificationToken.deleteMany({ where: { identifier: email } }),
+    // A visitor signup for the same address; the member's own row cascades with the user.
+    prisma.subscriber.deleteMany({ where: { email } }),
     prisma.articleView.deleteMany({ where: { visitorId: userId } }),
     prisma.user.delete({ where: { id: userId } }),
   ]);

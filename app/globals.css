@@ -22,7 +22,8 @@
 /*
  * Nystara design tokens.
  * Light: white canvas (--page), black text, very light grey cards (--background) and dark-navy buttons.
- * Dark: black canvas, white text, near-black cards and white buttons.
+ * Dark: warm charcoal canvas, off-white text, lifted charcoal cards and parchment buttons.
+ * Chart colours (--chart-1..8) are a fixed, colour-blind-checked categorical order, stepped per mode.
  * Sand: a warm, paper-like light theme, only ever chosen explicitly.
  */
 :root {
@@ -41,44 +42,68 @@
   --wall-b: #efe2c4;
   --wall-c: #c4d0d6;
   --wall-ink: #7d8f6c;
+  --chart-1: #2a78d6;
+  --chart-2: #eb6834;
+  --chart-3: #1baf7a;
+  --chart-4: #eda100;
+  --chart-5: #e87ba4;
+  --chart-6: #008300;
+  --chart-7: #6250d6;
+  --chart-8: #e34948;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
-    --page: #000000;
-    --background: #121212;
-    --foreground: #ffffff;
-    --muted: #b5b5b5;
-    --surface: #1c1c1c;
-    --surface-2: #2a2a2a;
-    --border: #2a2a2a;
-    --border-strong: #404040;
-    --accent: #ffffff;
-    --accent-foreground: #000000;
-    --danger: #ff8a7a;
-    --wall-a: #1f2a22;
-    --wall-b: #2b261c;
-    --wall-c: #18242c;
-    --wall-ink: #3b4a38;
+    --page: #1c1e21;
+    --background: #242529;
+    --foreground: #eeebe7;
+    --muted: #b7b2ae;
+    --surface: #2c2d30;
+    --surface-2: #36373b;
+    --border: #3b3d40;
+    --border-strong: #55585d;
+    --accent: #ece7df;
+    --accent-foreground: #2e2823;
+    --danger: #f28c8c;
+    --wall-a: #333a33;
+    --wall-b: #37362f;
+    --wall-c: #3d3547;
+    --wall-ink: #686458;
+    --chart-1: #3987e5;
+    --chart-2: #d95926;
+    --chart-3: #199e70;
+    --chart-4: #c98500;
+    --chart-5: #d55181;
+    --chart-6: #008300;
+    --chart-7: #9085e9;
+    --chart-8: #e66767;
   }
 }
 
 :root[data-theme="dark"] {
-  --page: #000000;
-  --background: #121212;
-  --foreground: #ffffff;
-  --muted: #b5b5b5;
-  --surface: #1c1c1c;
-  --surface-2: #2a2a2a;
-  --border: #2a2a2a;
-  --border-strong: #404040;
-  --accent: #ffffff;
-  --accent-foreground: #000000;
-  --danger: #ff8a7a;
-  --wall-a: #1f2a22;
-  --wall-b: #2b261c;
-  --wall-c: #18242c;
-  --wall-ink: #3b4a38;
+  --page: #1c1e21;
+  --background: #242529;
+  --foreground: #eeebe7;
+  --muted: #b7b2ae;
+  --surface: #2c2d30;
+  --surface-2: #36373b;
+  --border: #3b3d40;
+  --border-strong: #55585d;
+  --accent: #ece7df;
+  --accent-foreground: #2e2823;
+  --danger: #f28c8c;
+  --wall-a: #333a33;
+  --wall-b: #37362f;
+  --wall-c: #3d3547;
+  --wall-ink: #686458;
+  --chart-1: #3987e5;
+  --chart-2: #d95926;
+  --chart-3: #199e70;
+  --chart-4: #c98500;
+  --chart-5: #d55181;
+  --chart-6: #008300;
+  --chart-7: #9085e9;
+  --chart-8: #e66767;
 }
 
 :root[data-theme="sand"] {

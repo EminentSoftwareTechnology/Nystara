@@ -32,6 +32,11 @@ Pull request numbers refer to the GitHub repository.
 
 #### Reading and engagement
 
+- Story digests: daily, weekly or monthly emails with newly published, most-read
+  and trending stories. Visitors subscribe from the footer with Turnstile and an
+  email confirmation; members pick a frequency in email preferences. Sent by
+  `npm run digests`.
+
 - Article page redesign: hero header, share bar (Facebook, LinkedIn, X;
   Instagram and Discord through the share sheet or copy link), go-to-top
   button. (#10)
@@ -83,6 +88,14 @@ Pull request numbers refer to the GitHub repository.
 
 ### Changed
 
+- Dark theme (app and emails) now uses a warm charcoal palette with off-white
+  text and parchment buttons instead of pure black and white.
+- Writer stats charts use a colour-blind-checked categorical palette.
+- Article pages are wider: a larger story column and a wider trending rail.
+  Terms, privacy and cookie pages match the header width.
+- Development servers can send through Resend with `EMAIL_PROVIDER=resend`.
+- Admin user search matches email only on the exact full address.
+
 - Unique local ports to avoid collisions: app 6100, PostgreSQL 5442, Redis 6389,
   Mailpit 1035/8035. (#7)
 - Every article read is now recorded for trending. The members-only quota still
@@ -106,6 +119,12 @@ Pull request numbers refer to the GitHub repository.
   comment. (#1)
 
 ### Security
+
+- Personal data is encrypted at rest (AES-256-GCM): emails, sign-in token
+  identifiers, OAuth tokens, guest comment names, highlights and AI chats. Email
+  lookups use a keyed hash. Requires `DATA_ENCRYPTION_KEY`; run
+  `npm run db:encrypt` once after migrating.
+- Story writers can no longer delete readers' comments on their stories.
 
 See [SECURITY_REVIEW.md](SECURITY_REVIEW.md) for the full review (#1).
 

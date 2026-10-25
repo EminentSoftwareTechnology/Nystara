@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import AppShell from "@/components/layout/AppShell";
 import { CARD, buttonClass } from "@/components/ui";
-import { LineChart, BarChart, DonutChart } from "@/components/analytics/Charts";
+import { LineChart, BarChart, DonutChart, CHART_COLORS } from "@/components/analytics/Charts";
 import { publishDueStories } from "@/lib/story-status";
 import {
   monthPoints,
@@ -207,6 +207,7 @@ export default async function StatsPage({
               label: story.title,
               value: story.count,
             }))}
+            color={CHART_COLORS[0]}
           />
           <DonutChart
             title="Your writing portfolio · all time"
@@ -237,6 +238,7 @@ export default async function StatsPage({
             <BarChart
               title="When your readers read"
               points={weekdayViews}
+              color={CHART_COLORS[2]}
             />
             <p className="mt-2 px-1 text-xs text-muted">
               {bestDay.value
@@ -247,6 +249,7 @@ export default async function StatsPage({
           <BarChart
             title="Publishing rhythm · stories per month"
             points={monthPoints(monthly, 6)}
+            color={CHART_COLORS[6]}
           />
           <DonutChart
             title="How readers engaged this period"
@@ -275,8 +278,8 @@ export default async function StatsPage({
               className="mt-4 h-2 overflow-hidden rounded-full bg-surface-2"
             >
               <div
-                className="h-full rounded-full bg-accent"
-                style={{ width: `${(totalFollowers / goal) * 100}%` }}
+                className="h-full rounded-full"
+                style={{ width: `${(totalFollowers / goal) * 100}%`, backgroundColor: CHART_COLORS[3] }}
               />
             </div>
             <p className="mt-3 text-sm text-muted">

@@ -54,6 +54,7 @@ which is inlined at build time and must be passed as a Docker build argument.
 | `NEXTAUTH_SECRET` | `openssl rand -base64 32`. Also signs reader cookies and keys the rate limiter |
 | `ADMIN_JWT_SECRET` | `openssl rand -base64 32`, different from `NEXTAUTH_SECRET`. At least 32 characters |
 | `MFA_ENCRYPTION_KEY` | `openssl rand -base64 32` (must decode to exactly 32 bytes). Encrypts authenticator-app secrets. Changing it disables existing authenticator-app enrolments |
+| `DATA_ENCRYPTION_KEY` | `openssl rand -base64 32` (exactly 32 bytes). Encrypts personal-data columns and keys the email lookup hash. **Back it up with the database:** losing or changing it makes stored emails, OAuth tokens, highlights and AI chats unreadable and blocks sign-in |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Build argument |
 | `TURNSTILE_SECRET_KEY` | Runtime secret |
 | `RESEND_API_KEY` | Required for email sign-in in production |
@@ -130,7 +131,7 @@ PostgreSQL 16, Redis 7 (128 MB, `noeviction`) and the app on `${PORT:-6100}`.
 The database and Redis listen on `127.0.0.1` only.
 
 Set in your shell or `.env`: `POSTGRES_PASSWORD` (random hex),
-`NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `ADMIN_JWT_SECRET`,
+`NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `ADMIN_JWT_SECRET`, `DATA_ENCRYPTION_KEY`,
 `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, and any optional
 provider keys.
 
@@ -182,6 +183,7 @@ one, make sure `proxy.ts` can reach Redis, set `REDIS_URL`, and run
 | `5_security_review` | `sessionVersion`; comment parent `ON DELETE SET NULL`; comment and view indexes. Existing admin sessions must sign in again |
 | `6_mfa_passkeys` | Passkeys, recovery codes, auth challenges, TOTP columns, `Session.mfaVerifiedAt` |
 | `7_article_engagement` | `ArticleFeedback` (rating CHECK 1–5), guest comments (`guestName`, nullable author), `Article.theme`, comment `(articleId, createdAt)` index |
+| `10_digests_field_encryption` | `Subscriber` (digest emails), `User.emailHash`, `VerificationToken.identifierHash`. **After deploying, run `npm run db:encrypt` once** to encrypt existing rows; it is idempotent and safe to re-run. Until it finishes, existing users can't be found by email |
 
 Account setup is enforced in code, not by a migration: any existing reader
 without a display name or a second factor is sent to `/mfa` to finish setup on
@@ -214,10 +216,19 @@ Run daily, from an environment with the dev dependencies (the TypeScript runner
 npm run db:cleanup
 ```
 
-It deletes reader views older than 30 days and expired sessions, verification
-tokens and passkey challenges. This repository does not schedule it. Use a cron
+It deletes reader views older than 30 days, expired sessions, verification
+tokens and passkey challenges, and digest signups left unconfirmed for 7 days. This repository does not schedule it. Use a cron
 job, a Railway cron service or your platform's scheduler. Older views stop
 counting toward historical view totals.
+
+Digest emails (daily, weekly, monthly) need a second job, hourly or daily:
+
+```bash
+npm run digests
+```
+
+Each confirmed subscriber gets at most one digest per period, so extra runs are
+harmless. Nothing is sent for a period with no new, read or trending stories.
 
 Collect the app's stdout: security audit events are single JSON lines such as
 `{"event":"admin_login","outcome":"denied","timestamp":"…"}`. Alert on spikes
@@ -254,6 +265,8 @@ of `denied`.
 ### Operations
 
 - [ ] Daily `npm run db:cleanup` scheduled.
+- [ ] Hourly or daily `npm run digests` scheduled.
+- [ ] `DATA_ENCRYPTION_KEY` stored in a secrets manager next to the database backups.
 - [ ] Database backups enabled and a restore tested.
 - [ ] Logs collected; alerts on `denied` audit events and on 5xx rates.
 - [ ] Uptime monitor on `/api/health`, plus separate checks for the database and

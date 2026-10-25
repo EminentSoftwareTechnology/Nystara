@@ -22,7 +22,8 @@ use the app’s existing design tokens. Fonts fall back to Georgia and Arial.
 | Story deleted | Reader/admin deletes story | Activity |
 | Comment received | New comment on a published story | Activity |
 | Reply received | Reply to a registered reader’s comment | Activity |
-| Comment removed | Story author removes another reader’s comment | Activity |
+| Digest confirmation | Visitor subscribes from the footer form | Essential |
+| Daily / weekly / monthly digest | `npm run digests`, for confirmed subscribers | Digest |
 
 Reply recipients and story authors are deduplicated; people are not emailed
 about their own comments. Publication and role no-ops do not generate emails.
@@ -31,6 +32,15 @@ emails. Follow mutations, billing checkout/webhooks and newsletter sending are
 not implemented in this app, so this change does not invent those workflows.
 No passwords, recovery codes, TOTP secrets, export data or comment bodies are
 included in messages. Story messages use generic text rather than draft content.
+
+## Digests
+
+Visitors subscribe from the footer (`POST /api/newsletter`, Turnstile required)
+and confirm from the email. Signed-in readers choose Off, Daily, Weekly or
+Monthly under `/settings/notifications`; that applies immediately to their
+account email. A digest lists up to five newly published, most-read and trending
+stories for its period. Every digest has a signed one-year unsubscribe link and
+`List-Unsubscribe` headers; unsubscribing deletes the subscriber row.
 
 ## Preferences and unsubscribe
 
@@ -50,8 +60,9 @@ sign-in, security and account messages remain enabled. Rotating NEXTAUTH_SECRET
 invalidates old unsubscribe links; account settings remain available.
 
 Delivery uses Mailpit SMTP in development (`EMAIL_SERVER`, default port 1035),
-and Resend in production (`RESEND_API_KEY`). `EMAIL_FROM` overrides the sender;
-use a verified sender in production. Set `NEXTAUTH_URL` to the canonical app
+and Resend in production (`RESEND_API_KEY`). Set `EMAIL_PROVIDER=resend` to send
+through Resend from a development server. `EMAIL_FROM` overrides the sender; it
+must be on a domain verified in Resend whenever Resend is used. Set `NEXTAUTH_URL` to the canonical app
 origin so images and links resolve correctly. PNG logos are served from
 `public/brand/email/`; generate replacements from the corresponding brand SVGs.
 

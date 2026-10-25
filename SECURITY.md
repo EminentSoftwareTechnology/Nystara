@@ -42,6 +42,13 @@ explains the flows in detail.
 - **OAuth sign-in** requires a 5-minute signed Turnstile cookie checked in the
   Auth.js `signIn` callback.
 - **New usernames** are random (`writer-{uuid}`) and never derived from email.
+- **Email sign-in tokens** are looked up by their hashed token and matched against
+  the decrypted email, because the identifier column is encrypted
+  (`lib/auth-adapter.ts`).
+- **Engagement belongs to its author**: only a commenter can delete their own
+  comment, and likes, ratings and claps are keyed to the voter. Story writers
+  cannot remove or change other people's comments or votes; admins moderate
+  through the admin console.
 
 ### Admin console
 
@@ -121,6 +128,21 @@ explains the flows in detail.
 
 ### Privacy
 
+- **Encryption at rest** (`lib/field-encryption.ts`, `lib/prisma-encryption.ts`):
+  user and subscriber emails, email sign-in identifiers, OAuth access, refresh
+  and ID tokens, guest comment names, highlight quotes and notes, and AI chat
+  titles and messages are AES-256-GCM encrypted by a Prisma client extension
+  with keys derived (HKDF) from `DATA_ENCRYPTION_KEY`. Email lookups use a keyed
+  HMAC of the lowercased address (`emailHash`), so the database never holds a
+  plaintext or unkeyed-hash email. Filtering on an encrypted column other than
+  email equality throws instead of silently matching ciphertext. Public profile
+  and story fields (names, usernames, bios, story text) are not encrypted
+  because they are shown publicly and must stay searchable.
+- **Digest subscriptions** need double opt-in for visitors (Turnstile, 7-day
+  signed confirmation link) and give the same `202` whether or not an address is
+  already subscribed. Unsubscribing deletes the row; unconfirmed rows are
+  deleted after 7 days.
+
 - Anonymous readers get a random signed 30-day `reader_session` cookie. It is not
   derived from IP, browser fingerprint or email.
 - Data export is owner-scoped, paginated and excludes credentials.
@@ -138,6 +160,10 @@ The code cannot do these for you:
   32-byte base64 `MFA_ENCRYPTION_KEY`. Rotating the MFA key disables existing
   authenticator-app enrolments.
 - Use real Turnstile keys and provide `REDIS_URL` in production.
+- Generate a 32-byte base64 `DATA_ENCRYPTION_KEY`, store it with the database
+  backups and never rotate it in place: there is no re-keying tool, and a lost
+  key makes encrypted columns unreadable. Run `npm run db:encrypt` once after
+  deploying migration `10_digests_field_encryption`.
 - Run Redis with bounded memory and `noeviction` (eviction would reset
   penalties), with authentication, TLS and private networking. Do the same for
   PostgreSQL.

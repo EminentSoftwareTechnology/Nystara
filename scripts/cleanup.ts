@@ -9,7 +9,9 @@ async function main() {
     await prisma.verificationToken.deleteMany({ where: { expires: { lt: new Date() } } });
     await prisma.session.deleteMany({ where: { expires: { lt: new Date() } } });
     await prisma.authChallenge.deleteMany({ where: { expiresAt: { lt: new Date() } } });
-    console.info("Expired reader views, verification tokens, sessions and passkey challenges removed");
+    // Confirmation links last 7 days; unconfirmed digest signups are deleted after that.
+    await prisma.subscriber.deleteMany({ where: { confirmedAt: null, createdAt: { lt: new Date(Date.now() - 7 * 86400_000) } } });
+    console.info("Expired reader views, verification tokens, sessions, passkey challenges and unconfirmed digest signups removed");
   } finally {
     await prisma.$disconnect();
   }
