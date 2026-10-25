@@ -1,3 +1,4 @@
+import { notifyUser } from "@/lib/email/notifications";
 import { NextResponse } from "next/server";
 import { auth, authForAccountSetup } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -11,6 +12,7 @@ export async function PATCH(req: Request) {
   const input = z.object({ name: z.string().trim().min(1).max(100), bio: z.string().trim().max(500).optional() }).safeParse(await readJson(req));
   if (!input.success) return NextResponse.json({ error: "Add a display name of up to 100 characters." }, { status: 400 });
   await prisma.user.update({ where: { id: session.user.id }, data: { name: input.data.name, bio: input.data.bio } });
+  await notifyUser(session.user.id, "profile-updated");
   return NextResponse.json({ saved: true });
 }
 

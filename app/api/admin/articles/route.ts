@@ -1,3 +1,4 @@
+import { notifyUser } from "@/lib/email/notifications";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getVerifiedAdminSession } from "@/lib/admin-auth";
@@ -96,5 +97,6 @@ export async function POST(req: NextRequest) {
     select: { id: true, slug: true },
   });
 
+  if (published) await notifyUser(session.sub, "story-published");
   return NextResponse.json(article, { status: 201 });
 }

@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
         bio: true, avatarUrl: true, image: true, createdAt: true, stripeCustomerId: true,
         accounts: { select: { provider: true, providerAccountId: true } },
         subscription: { select: { status: true, currentPeriodEnd: true, cancelAtPeriodEnd: true } },
-        mfaEnabled: true, totpEnabledAt: true,
+        mfaEnabled: true, totpEnabledAt: true, emailTheme: true, activityEmails: true,
         passkeys: { select: { name: true, createdAt: true, lastUsedAt: true, deviceType: true, backedUp: true } },
       },
     });

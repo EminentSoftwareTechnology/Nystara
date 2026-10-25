@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -20,6 +21,7 @@ export default async function SettingsPage() {
           Choose how you appear to readers.
         </p>
         <ProfileSettings user={user} />
+        <Link href="/settings/notifications" className="mt-8 inline-block text-sm underline">Email preferences and unsubscribe</Link>
       </div>
     </AppShell>
   );

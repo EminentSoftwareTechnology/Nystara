@@ -1,0 +1,3 @@
+ALTER TABLE "User"
+  ADD COLUMN "emailTheme" TEXT NOT NULL DEFAULT 'light',
+  ADD COLUMN "activityEmails" BOOLEAN NOT NULL DEFAULT true;

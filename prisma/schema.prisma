@@ -25,6 +25,8 @@ model User {
   sessionVersion   Int      @default(0)
   createdAt        DateTime @default(now())
   stripeCustomerId String?  @unique
+  emailTheme       String    @default("light")
+  activityEmails   Boolean   @default(true)
   mfaEnabled       Boolean   @default(false)
   totpSecret       String?
   totpEnabledAt    DateTime?

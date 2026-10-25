@@ -1,3 +1,4 @@
+import { notifyUser } from "@/lib/email/notifications";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { readBody } from "@/lib/request";
@@ -16,7 +17,7 @@ export async function POST(
   const { id } = await params;
   const article = await prisma.article.findUnique({
     where: { id },
-    select: { authorId: true, publishedAt: true },
+    select: { authorId: true, published: true, publishedAt: true },
   });
 
   if (!article) {
@@ -42,5 +43,8 @@ export async function POST(
     select: { id: true, published: true, publishedAt: true },
   });
 
+  if (article.published !== published) {
+    await notifyUser(article.authorId, published ? "story-published" : "story-unpublished");
+  }
   return NextResponse.json(updated);
 }

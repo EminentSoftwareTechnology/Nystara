@@ -1,3 +1,4 @@
+import { notifyUser } from "@/lib/email/notifications";
 import { NextRequest, NextResponse } from "next/server";
 import { audit } from "@/lib/audit";
 import { z } from "zod";
@@ -50,7 +51,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Cannot remove your own admin role" }, { status: 400 });
   }
 
-  const existing = await prisma.user.findUnique({ where: { id }, select: { id: true } });
+  const existing = await prisma.user.findUnique({ where: { id }, select: { id: true, role: true } });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const user = await prisma.user.update({
@@ -58,7 +59,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     data: { ...parsed.data, ...(parsed.data.role ? { sessionVersion: { increment: 1 } } : {}) },
     select: { id: true, email: true, name: true, username: true, role: true, bio: true, avatarUrl: true, createdAt: true },
   });
-  if (parsed.data.role) audit("role_change", "success");
+  if (parsed.data.role && parsed.data.role !== existing.role) {
+    audit("role_change", "success");
+    await notifyUser(user.id, "role-changed", { detail: `Your account role is now ${user.role === "ADMIN" ? "administrator" : "reader"}.` });
+  }
   return NextResponse.json(user);
 }
 

@@ -1,3 +1,4 @@
+import { notifyUser } from "@/lib/email/notifications";
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -98,5 +99,6 @@ export async function DELETE(
   }
 
   await prisma.article.delete({ where: { id } });
+  await notifyUser(article.authorId, "story-deleted");
   return new NextResponse(null, { status: 204 });
 }

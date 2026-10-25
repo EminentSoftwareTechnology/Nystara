@@ -1,3 +1,4 @@
+import { notifyUser } from "@/lib/email/notifications";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { rateLimit } from "@/lib/rate-limit";
@@ -153,6 +154,7 @@ export async function handleSecurityAction(
       await refreshMfaFlag(userId);
       const recoveryCodes = hasMfa ? undefined : await regenerateRecoveryCodes(userId);
       audit("mfa_totp_enabled", "success");
+      await notifyUser(userId, "totp-enabled");
       return { status: 200, body: { ok: true, recoveryCodes }, verified: true };
     }
 
@@ -162,6 +164,7 @@ export async function handleSecurityAction(
       await prisma.user.update({ where: { id: userId }, data: { totpSecret: null, totpEnabledAt: null, totpLastStep: null } });
       await refreshMfaFlag(userId);
       audit("mfa_totp_disabled", "success");
+      if (methods.totp) await notifyUser(userId, "totp-disabled");
       return { status: 200, body: { ok: true } };
     }
 
@@ -181,6 +184,7 @@ export async function handleSecurityAction(
       await refreshMfaFlag(userId);
       const recoveryCodes = hasMfa ? undefined : await regenerateRecoveryCodes(userId);
       audit("mfa_passkey_added", "success");
+      await notifyUser(userId, "passkey-added");
       return { status: 200, body: { ok: true, recoveryCodes }, verified: true };
     }
 
@@ -192,6 +196,7 @@ export async function handleSecurityAction(
       if (count === 0) return { status: 404, body: { error: "Passkey not found" } };
       await refreshMfaFlag(userId);
       audit("mfa_passkey_removed", "success");
+      await notifyUser(userId, "passkey-removed");
       return { status: 200, body: { ok: true } };
     }
 
@@ -199,8 +204,10 @@ export async function handleSecurityAction(
       if (!hasMfa) return { status: 409, body: { error: "Turn on a second factor first" } };
       const denied = await proven(bodySchemas[action].parse(rawBody).proof);
       if (denied) return denied;
+      const recoveryCodes = await regenerateRecoveryCodes(userId);
       audit("mfa_recovery_regenerated", "success");
-      return { status: 200, body: { ok: true, recoveryCodes: await regenerateRecoveryCodes(userId) } };
+      await notifyUser(userId, "recovery-regenerated");
+      return { status: 200, body: { ok: true, recoveryCodes } };
     }
   }
 }
