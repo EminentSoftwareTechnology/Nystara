@@ -1,3 +1,5 @@
+import { getVerifiedAdminSession } from "@/lib/admin-auth";
+import { redirect } from "next/navigation";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
@@ -6,6 +8,7 @@ import DeleteArticleButton from "./DeleteArticleButton";
 type Props = { params: Promise<{ id: string }> };
 
 export default async function AdminArticleViewPage({ params }: Props) {
+  if (!(await getVerifiedAdminSession())) redirect("/admin/login");
   const { id } = await params;
 
   const article = await prisma.article.findUnique({

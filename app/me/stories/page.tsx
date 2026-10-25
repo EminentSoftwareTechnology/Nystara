@@ -1,3 +1,4 @@
+import { parsePage } from "@/lib/request";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -6,13 +7,16 @@ import AppShell from "@/components/layout/AppShell";
 
 export const dynamic = "force-dynamic";
 
-export default async function StoriesPage() {
+export default async function StoriesPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
+  const page = parsePage((await searchParams).page);
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
   const articles = await prisma.article.findMany({
     where: { authorId: session.user.id },
-    orderBy: { updatedAt: "desc" },
+    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+    skip: (page - 1) * 20,
+    take: 21,
     select: {
       id: true,
       slug: true,
@@ -27,8 +31,10 @@ export default async function StoriesPage() {
     },
   });
 
-  const drafts = articles.filter((a) => !a.published);
-  const published = articles.filter((a) => a.published);
+  const hasNext = articles.length > 20;
+  const items = articles.slice(0, 20);
+  const drafts = items.filter((a) => !a.published);
+  const published = items.filter((a) => a.published);
 
   return (
     <AppShell>
@@ -62,7 +68,7 @@ export default async function StoriesPage() {
         {/* Drafts */}
         {drafts.length === 0 ? (
           <div className="py-20 text-center">
-            <p className="text-lg font-semibold text-gray-900 dark:text-white mb-1">No stories in draft.</p>
+            <p className="text-lg font-semibold text-gray-900 dark:text-white mb-1">No drafts on this page.</p>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Why not{" "}
               <Link href="/new-story" className="underline hover:no-underline">
@@ -143,6 +149,10 @@ export default async function StoriesPage() {
             </div>
           </div>
         )}
+        <nav aria-label="Story pages" className="flex justify-between mt-8 text-sm">
+          {page > 1 ? <Link href={`/me/stories?page=${page - 1}`}>Previous page</Link> : <span />}
+          {hasNext && page < 1000 && <Link href={`/me/stories?page=${page + 1}`}>Next page</Link>}
+        </nav>
       </div>
     </AppShell>
   );

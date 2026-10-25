@@ -6,9 +6,9 @@ import { prisma } from "@/lib/prisma";
 export async function isActiveAdmin(session: AdminPayload): Promise<boolean> {
   const user = await prisma.user.findUnique({
     where: { id: session.sub },
-    select: { email: true, role: true },
+    select: { email: true, role: true, sessionVersion: true },
   });
-  return !!user && user.role === "ADMIN" && user.email === session.email;
+  return !!user && user.role === "ADMIN" && user.email === session.email && user.sessionVersion === session.version;
 }
 
 export async function getVerifiedAdminSession(): Promise<AdminPayload | null> {

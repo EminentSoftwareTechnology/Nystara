@@ -1,170 +1,86 @@
 #!/usr/bin/env bash
 # Usage: ./start.sh [dev|prod|docker]
-#   dev    (default) local Postgres/Redis in Docker + `next dev` with hot reload
-#   prod   local Postgres/Redis in Docker + production build via `next start`
-#   docker full stack (app + db + redis) via docker-compose.yml
+# dev: local infrastructure and hot reload; prod: local build; docker: full Compose stack.
 set -euo pipefail
-
 MODE="${1:-dev}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
-
-LOCAL_DB_URL="postgresql://techscribe:techscribe@localhost:5432/techscribe"
-DEV_COMPOSE="docker-compose.dev.yml"
-
-log()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
-warn() { printf '\033[1;33mWARN:\033[0m %s\n' "$*" >&2; }
-die()  { printf '\033[1;31mERROR:\033[0m %s\n' "$*" >&2; exit 1; }
-
-require() { command -v "$1" >/dev/null 2>&1 || die "$1 is required but not installed."; }
-
-# Supports both the Compose v2 plugin and the standalone docker-compose binary.
+log() { printf '==> %s\n' "$*"; }
+die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+require() { command -v "$1" >/dev/null 2>&1 || die "$1 is required."; }
 compose() {
-  if docker compose version >/dev/null 2>&1; then
-    docker compose "$@"
-  elif command -v docker-compose >/dev/null 2>&1; then
-    docker-compose "$@"
-  else
-    die "Docker Compose not found. Install the compose plugin or docker-compose."
-  fi
+  if docker compose version >/dev/null 2>&1; then docker compose "$@";
+  elif command -v docker-compose >/dev/null 2>&1; then docker-compose "$@";
+  else die "Docker Compose is required."; fi
 }
-
-check_prereqs() {
-  require node
-  require npm
-  require docker
-  docker info >/dev/null 2>&1 || die "Docker daemon is not running. Start Docker Desktop and retry."
-  local major
-  major="$(node -p 'process.versions.node.split(".")[0]')"
-  [ "$major" -ge 20 ] || die "Node 20+ required (found $(node -v))."
-}
-
-ensure_env_file() {
-  if [ -f .env.local ] || [ -f .env ]; then
-    return
-  fi
-  require openssl
-  log "No .env/.env.local found — creating .env.local from .env.example with fresh secrets"
-  sed \
-    -e "s|^DATABASE_URL=.*|DATABASE_URL=${LOCAL_DB_URL}|" \
-    -e "s|^NEXTAUTH_SECRET=.*|NEXTAUTH_SECRET=$(openssl rand -base64 32)|" \
-    -e "s|^ADMIN_JWT_SECRET=.*|ADMIN_JWT_SECRET=$(openssl rand -base64 32)|" \
-    .env.example > .env.local
-  chmod 600 .env.local
-}
-
-load_env() {
-  # .env.local overrides .env, matching Next.js precedence.
-  set -a
-  # shellcheck disable=SC1091
-  [ -f .env ] && . ./.env
-  # shellcheck disable=SC1091
-  [ -f .env.local ] && . ./.env.local
-  set +a
-  export DATABASE_URL="${DATABASE_URL:-$LOCAL_DB_URL}"
-}
-
-check_secrets() {
-  [ -n "${NEXTAUTH_SECRET:-}" ] || die "NEXTAUTH_SECRET is not set (generate: openssl rand -base64 32)."
-  [ -n "${ADMIN_JWT_SECRET:-}" ] || warn "ADMIN_JWT_SECRET is not set — /admin login will fail."
-  if [ "$MODE" != "dev" ] && [ -z "${TURNSTILE_SECRET_KEY:-}" ]; then
-    warn "TURNSTILE_SECRET_KEY is not set — CAPTCHA-protected endpoints will error in production mode."
-  fi
-}
-
-uses_local_db() {
-  [[ "$DATABASE_URL" == *"@localhost:"* || "$DATABASE_URL" == *"@127.0.0.1:"* ]]
-}
-
-start_infra() {
-  if ! uses_local_db; then
-    log "DATABASE_URL points to a remote host — skipping local Postgres/Redis"
-    return
-  fi
-  log "Starting Postgres (127.0.0.1:5432) and Redis (127.0.0.1:6379)"
-  compose -f "$DEV_COMPOSE" up -d
-
-  log "Waiting for Postgres"
-  local i
-  for i in $(seq 1 60); do
-    compose -f "$DEV_COMPOSE" exec -T db pg_isready -U techscribe -q && break
-    [ "$i" -eq 60 ] && die "Postgres did not become ready in 60s."
-    sleep 1
-  done
-
-  log "Waiting for Redis"
-  for i in $(seq 1 30); do
-    compose -f "$DEV_COMPOSE" exec -T redis redis-cli ping 2>/dev/null | grep -q PONG && break
-    [ "$i" -eq 30 ] && die "Redis did not become ready in 30s."
-    sleep 1
-  done
-}
-
-install_deps() {
-  if [ ! -d node_modules ] || [ package-lock.json -nt node_modules/.package-lock.json ]; then
-    log "Installing dependencies"
-    npm ci
-  fi
-}
-
-prepare_db() {
-  if ! uses_local_db && [ "${ALLOW_REMOTE_MIGRATE:-0}" != "1" ]; then
-    die "Refusing to run migrations against remote DATABASE_URL. Set ALLOW_REMOTE_MIGRATE=1 to override."
-  fi
-  log "Generating Prisma client"
-  npx prisma generate >/dev/null
-  log "Applying database migrations"
-  npx prisma migrate deploy
-}
-
-check_port() {
-  local port="${PORT:-3000}"
-  if lsof -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
-    die "Port $port is already in use. Stop that process or set PORT."
-  fi
-}
-
 case "$MODE" in
-  dev)
-    check_prereqs
-    ensure_env_file
-    load_env
-    check_secrets
-    check_port
-    install_deps
-    start_infra
-    prepare_db
-    log "Starting Next.js dev server on http://localhost:${PORT:-3000}"
-    exec npm run dev
-    ;;
-  prod)
-    check_prereqs
-    ensure_env_file
-    load_env
-    export NODE_ENV=production
-    check_secrets
-    check_port
-    install_deps
-    start_infra
-    prepare_db
-    log "Building production bundle"
-    npm run build
-    log "Starting production server on http://localhost:${PORT:-3000}"
-    exec npm run start
-    ;;
-  docker)
-    require docker
-    docker info >/dev/null 2>&1 || die "Docker daemon is not running."
-    ensure_env_file
-    load_env
-    check_secrets
-    log "Building and starting full stack via docker-compose.yml"
-    compose up --build
-    ;;
-  -h|--help|help)
-    sed -n '2,5p' "$0" | sed 's/^# \{0,1\}//'
-    ;;
-  *)
-    die "Unknown mode '$MODE'. Use: dev | prod | docker"
-    ;;
+  -h|--help|help) head -n 3 "$0" | tail -n 2 | sed 's/^# //'; exit 0 ;;
+  dev|prod|docker) ;;
+  *) die "Unknown mode. Use dev, prod, or docker." ;;
 esac
+require node
+require npm
+node -e 'const [a,b]=process.versions.node.split(".").map(Number);process.exit(a>22 || (a===22 && b>=12) ? 0:1)' || die "Node 22.12+ is required."
+if [ "$MODE" != dev ]; then export NODE_ENV=production; fi
+if [ ! -f .env.local ] && [ ! -f .env ]; then
+  log "Creating .env.local with fresh secrets"
+  (umask 077; node --input-type=module <<'JS'
+import { readFileSync, writeFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+const password = randomBytes(24).toString('hex');
+let content = readFileSync('.env.example', 'utf8');
+const values = {
+  DATABASE_URL: 'postgresql://techscribe:techscribe@127.0.0.1:5432/techscribe',
+  REDIS_URL: 'redis://127.0.0.1:6379',
+  NEXTAUTH_SECRET: randomBytes(32).toString('hex'),
+  ADMIN_JWT_SECRET: randomBytes(32).toString('hex'),
+  POSTGRES_PASSWORD: password,
+};
+for (const [key, value] of Object.entries(values)) content = content.replace(new RegExp(`^${key}=.*$`, 'm'), `${key}=${value}`);
+writeFileSync('.env.local', content, { mode: 0o600, flag: 'wx' });
+JS
+  )
+fi
+if [ ! -d node_modules ] || [ package-lock.json -nt node_modules/.package-lock.json ]; then
+  log "Installing dependencies"
+  npm ci
+fi
+# Parse dotenv as data using the same loader as Next.js; never source shell code.
+if [ "${2:-}" != --env-loaded ]; then exec node scripts/start.mjs "$MODE"; fi
+node --input-type=module <<'JS'
+for (const key of ['NEXTAUTH_SECRET', 'ADMIN_JWT_SECRET']) {
+  const value = process.env[key];
+  if (!value || value.length < 32 || value.startsWith('generate-')) throw new Error(`${key} must contain at least 32 random characters`);
+}
+if (!process.env.DATABASE_URL || !process.env.NEXTAUTH_URL) throw new Error('DATABASE_URL and NEXTAUTH_URL are required');
+if (process.env.NODE_ENV === 'production') {
+  const key = process.env.TURNSTILE_SECRET_KEY;
+  if (!key || /^[123]x0{10,}/.test(key)) throw new Error('A real production Turnstile secret is required');
+  const site = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+  if (!site || /^[123]x0{10,}/.test(site)) throw new Error("A real production Turnstile site key is required");
+  if (!process.env.REDIS_URL) throw new Error('REDIS_URL is required in production');
+}
+JS
+if [ "$MODE" = docker ]; then
+  require docker
+  docker info >/dev/null 2>&1 || die "Docker daemon is not running."
+  compose -f docker-compose.yml up --build
+  exit $?
+fi
+DB_LOCAL="$(node -e 'const u=new URL(process.env.DATABASE_URL);console.log(["localhost","127.0.0.1","[::1]"].includes(u.hostname)?"1":"0")')"
+if [ "$DB_LOCAL" = 1 ]; then
+  require docker
+  docker info >/dev/null 2>&1 || die "Docker daemon is not running."
+  log "Starting local Postgres and Redis"
+  compose -f docker-compose.dev.yml up -d --wait --wait-timeout 60
+elif [ "${ALLOW_REMOTE_MIGRATE:-0}" != 1 ]; then
+  die "Remote database migrations require ALLOW_REMOTE_MIGRATE=1."
+fi
+log "Generating Prisma client and applying migrations"
+npm run db:generate
+npm run db:migrate:deploy
+if [ "$MODE" = prod ]; then
+  npm run build
+  exec npm run start -- --hostname "${HOST:-127.0.0.1}" --port "${PORT:-3000}"
+fi
+exec npm run dev -- --hostname "${HOST:-127.0.0.1}" --port "${PORT:-3000}"

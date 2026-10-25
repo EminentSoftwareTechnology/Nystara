@@ -1,22 +1,9 @@
-import { createHmac } from "node:crypto";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { checkPaywallAccess, extractExcerpt } from "@/lib/paywall";
-import { getClientIp } from "@/lib/client-ip";
-
-// Quota is per-device. The keyed hash keeps raw IPs out of the DB and can't be
-// reversed by enumerating the IPv4 space without the server secret.
-async function deriveVisitorId(): Promise<string> {
-  const hdrs = await headers();
-  const ua = hdrs.get("user-agent") ?? "";
-  const digest = createHmac("sha256", process.env.NEXTAUTH_SECRET!)
-    .update(`${getClientIp(hdrs)}|${ua}`)
-    .digest("hex");
-  return `anon-${digest.slice(0, 32)}`;
-}
 
 type Props = {
   params: Promise<{ username: string; slug: string }>;
@@ -59,9 +46,9 @@ export default async function ArticlePage({ params }: Props) {
     if (session?.user?.id) {
       const sub = await prisma.subscription.findUnique({
         where: { userId: session.user.id },
-        select: { status: true },
+        select: { status: true, currentPeriodEnd: true },
       });
-      if (sub?.status === "ACTIVE") {
+      if ((sub?.status === "ACTIVE" || sub?.status === "TRIALING") && sub.currentPeriodEnd > new Date()) {
         paywalled = false;
       } else {
         // Logged-in non-members get the same free quota as anonymous visitors
@@ -70,7 +57,8 @@ export default async function ArticlePage({ params }: Props) {
         paywalled = !allowed;
       }
     } else {
-      const visitorId = await deriveVisitorId();
+      const visitorId = (await headers()).get("x-reader-id");
+      if (!visitorId) notFound();
       const { allowed } = await checkPaywallAccess(visitorId, article.id);
       paywalled = !allowed;
     }
@@ -87,12 +75,13 @@ export default async function ArticlePage({ params }: Props) {
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={article.coverImage}
+          referrerPolicy="no-referrer"
           alt={article.title}
           className="w-full rounded-lg mb-8 object-cover max-h-96"
         />
       )}
 
-      <h1 className="text-4xl font-bold leading-tight mb-3">{article.title}</h1>
+      <h1 className="text-4xl font-bold leading-tight mb-3 wrap-anywhere">{article.title}</h1>
       {article.subtitle && (
         <p className="text-xl text-gray-600 mb-4">{article.subtitle}</p>
       )}
@@ -140,7 +129,7 @@ export default async function ArticlePage({ params }: Props) {
       )}
 
       <div className="prose max-w-none">
-        <p className="whitespace-pre-wrap leading-relaxed">{displayText}</p>
+        <p className="whitespace-pre-wrap leading-relaxed wrap-anywhere">{displayText}</p>
       </div>
 
       {paywalled && (

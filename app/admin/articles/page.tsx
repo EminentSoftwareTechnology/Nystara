@@ -1,3 +1,5 @@
+import { getVerifiedAdminSession } from "@/lib/admin-auth";
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { parsePage } from "@/lib/request";
@@ -7,8 +9,10 @@ export const dynamic = "force-dynamic";
 type SearchParams = { page?: string; q?: string; status?: string };
 
 export default async function AdminArticlesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const { page: pageStr, q, status } = await searchParams;
+  if (!(await getVerifiedAdminSession())) redirect("/admin/login");
+  const { page: pageStr, q: query, status } = await searchParams;
   const page = parsePage(pageStr);
+  const q = query?.slice(0, 200);
   const take = 20;
   const skip = (page - 1) * take;
 

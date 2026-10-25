@@ -9,7 +9,9 @@ export const ADMIN_AUDIENCE = "techscribe:admin";
 
 function getSecret(): Uint8Array {
   const secret = process.env.ADMIN_JWT_SECRET;
-  if (!secret) throw new Error("ADMIN_JWT_SECRET must be set");
+  if (!secret || secret.length < 32 || secret.startsWith("generate-")) {
+    throw new Error("ADMIN_JWT_SECRET must contain at least 32 random characters");
+  }
   return new TextEncoder().encode(secret);
 }
 
@@ -17,6 +19,7 @@ export type AdminPayload = {
   sub: string;
   email: string;
   role: string;
+  version: number;
 };
 
 export async function createAdminSession(payload: AdminPayload): Promise<string> {
@@ -34,8 +37,9 @@ export async function verifyAdminToken(token: string): Promise<AdminPayload | nu
       algorithms: ["HS256"],
       audience: ADMIN_AUDIENCE,
     });
-    if (payload.role !== "ADMIN" || typeof payload.sub !== "string") return null;
-    return payload as unknown as AdminPayload;
+    if (payload.role !== "ADMIN" || typeof payload.sub !== "string" ||
+      typeof payload.email !== "string" || !Number.isSafeInteger(payload.version)) return null;
+    return { sub: payload.sub, email: payload.email, role: payload.role, version: payload.version as number };
   } catch {
     return null;
   }

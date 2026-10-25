@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
+import { audit } from "@/lib/audit";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { getVerifiedAdminSession } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
+import { passwordSchema } from "@/lib/password";
+import { clearAdminSessionCookie } from "@/lib/admin-session";
 import { readJson } from "@/lib/request";
 
 const updateSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   bio: z.string().max(500).optional(),
   currentPassword: z.string().max(256).optional(),
-  newPassword: z.string().min(12).max(256).optional(),
+  newPassword: passwordSchema.optional(),
 });
 
 export async function PATCH(req: NextRequest) {
@@ -40,10 +43,14 @@ export async function PATCH(req: NextRequest) {
     data: {
       ...(name !== undefined ? { name } : {}),
       ...(bio !== undefined ? { bio } : {}),
-      ...(newPassword ? { passwordHash: await bcrypt.hash(newPassword, 12) } : {}),
+      ...(newPassword ? { passwordHash: await bcrypt.hash(newPassword, 12), sessionVersion: { increment: 1 } } : {}),
     },
     select: { id: true, email: true, name: true, bio: true, avatarUrl: true },
   });
 
+  if (newPassword) {
+    await clearAdminSessionCookie();
+    audit("password_change", "success");
+  }
   return NextResponse.json(user);
 }

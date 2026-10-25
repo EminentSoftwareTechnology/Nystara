@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
   const { title, subtitle, contentText, memberOnly, published, tagSlugs } = parsed.data;
   const wordCount = contentText.trim().split(/\s+/).filter(Boolean).length;
   const readTime = Math.max(1, Math.ceil(wordCount / 200));
-  const slug = await generateUniqueSlug(title, session.sub);
+  const slug = generateUniqueSlug(title);
 
   const article = await prisma.article.create({
     data: {
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
       publishedAt: published ? new Date() : null,
       authorId: session.sub,
       tags: {
-        create: tagSlugs.map((tagSlug) => ({
+        create: [...new Set(tagSlugs)].map((tagSlug) => ({
           tag: {
             connectOrCreate: {
               where: { slug: tagSlug },

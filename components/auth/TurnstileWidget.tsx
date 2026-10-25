@@ -8,7 +8,7 @@ type Props = {
 };
 
 export default function TurnstileWidget({ onSuccess, onError }: Props) {
-  const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "1x00000000000000000000AA";
+  const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || (process.env.NODE_ENV !== "production" ? "1x00000000000000000000AA" : "");
 
   return (
     <Turnstile

@@ -11,17 +11,8 @@ export default async function FollowingPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
-  const follows = await prisma.follow.findMany({
-    where: { followerId: session.user.id },
-    select: { followingId: true },
-  });
-
-  const followingIds = follows.map((f) => f.followingId);
-
-  const articles =
-    followingIds.length > 0
-      ? await prisma.article.findMany({
-          where: { published: true, authorId: { in: followingIds } },
+  const articles = await prisma.article.findMany({
+          where: { published: true, author: { followers: { some: { followerId: session.user.id } } } },
           orderBy: { publishedAt: "desc" },
           take: 20,
           select: {
@@ -37,8 +28,7 @@ export default async function FollowingPage() {
             tags: { select: { tag: { select: { name: true, slug: true } } } },
             _count: { select: { claps: true, comments: true } },
           },
-        })
-      : [];
+        });
 
   return (
     <AppShell>

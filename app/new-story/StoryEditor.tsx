@@ -34,6 +34,7 @@ export default function StoryEditor({ name, email, avatarUrl, username }: Props)
   const router = useRouter();
   const titleRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const [draft, setDraft] = useState<{ id: string; slug: string; author: { username: string } } | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState("");
 
@@ -49,27 +50,41 @@ export default function StoryEditor({ name, email, avatarUrl, username }: Props)
     setPublishing(true);
     setError("");
 
-    const res = await fetch("/api/articles", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title,
-        content: { type: "doc", text: contentText },
-        contentText,
-        memberOnly: false,
-      }),
-    });
-
-    setPublishing(false);
-
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      setError(body?.error ? JSON.stringify(body.error) : "Failed to publish.");
-      return;
+    try {
+      let article = draft;
+      if (!article) {
+        const res = await fetch("/api/articles", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title, content: { type: "doc", text: contentText }, contentText, memberOnly: false }),
+        });
+        if (!res.ok) {
+          setError("Failed to save your story.");
+          return;
+        }
+        article = await res.json() as { id: string; slug: string; author: { username: string } };
+        setDraft(article);
+      } else {
+        const saved = await fetch(`/api/articles/${article.id}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title, content: { type: "doc", text: contentText }, contentText }),
+        });
+        if (!saved.ok) {
+          setError("Failed to update your draft.");
+          return;
+        }
+      }
+      const published = await fetch(`/api/articles/${article.id}/publish`, { method: "POST" });
+      if (!published.ok) {
+        setError("Your draft was saved. Publication failed; please retry.");
+        return;
+      }
+      router.push(`/${article.author.username}/${article.slug}`);
+    } catch {
+      setError("Unable to publish. Check your connection and retry.");
+    } finally {
+      setPublishing(false);
     }
-
-    const article = await res.json() as { slug: string; author: { username: string } };
-    router.push(`/${article.author.username}/${article.slug}`);
   }
 
   return (
@@ -111,6 +126,8 @@ export default function StoryEditor({ name, email, avatarUrl, username }: Props)
         <div className="w-full max-w-2xl">
           <div
             ref={titleRef}
+            role="textbox"
+            aria-label="Title"
             contentEditable
             suppressContentEditableWarning
             data-placeholder="Title"
@@ -128,6 +145,9 @@ export default function StoryEditor({ name, email, avatarUrl, username }: Props)
             </button>
             <div
               ref={bodyRef}
+              role="textbox"
+              aria-label="Story text"
+              aria-multiline="true"
               contentEditable
               suppressContentEditableWarning
               data-placeholder="Tell your story..."

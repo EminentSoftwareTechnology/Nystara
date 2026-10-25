@@ -1,5 +1,7 @@
 # DEPLOY.md
 
+Security review deployment requirements take precedence over older examples below: use the patched lockfile; configure shared `REDIS_URL`, canonical `NEXTAUTH_URL`, separate random admin/auth secrets, and real Turnstile keys. Set the public Turnstile site key as a Docker build argument. Database URLs belong in runtime variables, not build arguments. Verify proxy header behavior before enabling `TRUST_PROXY_IP=1`; require ingress DDoS/connection/body limits, private data stores, and daily `npm run db:cleanup` from a maintenance environment with dev tools installed. Apply migration `5_security_review` before serving the new app; administrators must sign in again. See [SECURITY_REVIEW.md](SECURITY_REVIEW.md).
+
 Deployment guide for TechScribe to various platforms.
 
 ## Table of Contents

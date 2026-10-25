@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 type Profile = {
@@ -11,6 +12,7 @@ type Profile = {
 };
 
 export default function AdminProfilePage() {
+  const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ name: "", bio: "" });
@@ -58,7 +60,11 @@ export default function AdminProfilePage() {
     const data = await res.json() as { error?: string };
     setChangingPw(false);
     setPwMsg(res.ok ? "Password changed." : (data.error ?? "Failed."));
-    if (res.ok) setPwForm({ currentPassword: "", newPassword: "", confirm: "" });
+    if (res.ok) {
+      setPwForm({ currentPassword: "", newPassword: "", confirm: "" });
+      router.replace("/admin/login");
+      router.refresh();
+    }
     setTimeout(() => setPwMsg(""), 4000);
   }
 

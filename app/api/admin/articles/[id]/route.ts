@@ -74,7 +74,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       ...(tagSlugs !== undefined ? {
         tags: {
           deleteMany: {},
-          create: tagSlugs.map((tagSlug) => ({
+          create: [...new Set(tagSlugs)].map((tagSlug) => ({
             tag: {
               connectOrCreate: {
                 where: { slug: tagSlug },

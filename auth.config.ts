@@ -23,6 +23,8 @@ async function isValidAdminToken(token: string): Promise<boolean> {
 // Edge-safe config: no Prisma/Node-only imports.
 // Imported by both middleware.ts and lib/auth.ts.
 export const authConfig = {
+  // NextAuth normalizes requests and internal action URLs to this configured origin.
+  trustHost: Boolean(process.env.NEXTAUTH_URL),
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,

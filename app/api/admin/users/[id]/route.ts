@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { audit } from "@/lib/audit";
 import { z } from "zod";
 import { getVerifiedAdminSession } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
@@ -49,11 +50,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Cannot remove your own admin role" }, { status: 400 });
   }
 
+  const existing = await prisma.user.findUnique({ where: { id }, select: { id: true } });
+  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
   const user = await prisma.user.update({
     where: { id },
-    data: parsed.data,
+    data: { ...parsed.data, ...(parsed.data.role ? { sessionVersion: { increment: 1 } } : {}) },
     select: { id: true, email: true, name: true, username: true, role: true, bio: true, avatarUrl: true, createdAt: true },
   });
+  if (parsed.data.role) audit("role_change", "success");
   return NextResponse.json(user);
 }
 

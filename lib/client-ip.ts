@@ -1,7 +1,8 @@
-// The left-most X-Forwarded-For entry is client-controlled; the right-most is
-// the address our edge proxy (Railway) actually observed.
+import { isIP } from "node:net";
+
 export function getClientIp(headers: Headers): string {
-  const forwarded = headers.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",").at(-1)!.trim();
-  return "unknown";
+  // Enable only behind an ingress that appends/overwrites X-Forwarded-For and blocks direct traffic.
+  if (process.env.TRUST_PROXY_IP !== "1") return "unknown";
+  const value = headers.get("x-forwarded-for")?.split(",").at(-1)?.trim();
+  return value && isIP(value) ? value : "unknown";
 }

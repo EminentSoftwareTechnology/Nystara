@@ -11,7 +11,7 @@ export default async function LibraryPage() {
   if (!session?.user?.id) redirect("/login");
 
   const bookmarks = await prisma.bookmark.findMany({
-    where: { userId: session.user.id },
+    where: { userId: session.user.id, article: { published: true } },
     orderBy: { createdAt: "desc" },
     take: 20,
     select: {

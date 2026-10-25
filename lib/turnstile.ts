@@ -2,6 +2,7 @@ const VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
 export async function verifyTurnstile(token: string): Promise<boolean> {
   const secret = process.env.TURNSTILE_SECRET_KEY;
+  if (process.env.NODE_ENV === "production" && (!secret || /^[123]x0{10,}/.test(secret))) return false;
   if (!secret) {
     // In development without keys configured, skip verification
     if (process.env.NODE_ENV !== "production") return true;

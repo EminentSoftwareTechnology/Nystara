@@ -10,40 +10,18 @@ export function extractExcerpt(contentText: string): string {
   return words.slice(0, EXCERPT_WORD_COUNT).join(" ") + "…";
 }
 
-export async function checkPaywallAccess(
-  visitorId: string,
-  articleId: string,
-): Promise<{ allowed: boolean; remaining: number }> {
-  const windowStart = new Date();
-  windowStart.setDate(windowStart.getDate() - WINDOW_DAYS);
-
-  const [alreadyViewed, count] = await prisma.$transaction([
-    prisma.articleView.findFirst({
-      where: { visitorId, articleId, createdAt: { gte: windowStart } },
-      select: { id: true },
-    }),
-    prisma.articleView.count({
-      where: { visitorId, createdAt: { gte: windowStart } },
-    }),
-  ]);
-
-  if (alreadyViewed) {
-    return { allowed: true, remaining: Math.max(0, FREE_LIMIT - count) };
-  }
-
-  if (count >= FREE_LIMIT) {
-    return { allowed: false, remaining: 0 };
-  }
-
-  // Re-check count inside a transaction to prevent quota over-run under concurrent requests
-  const result = await prisma.$transaction(async (tx) => {
-    const current = await tx.articleView.count({
-      where: { visitorId, createdAt: { gte: windowStart } },
+export async function checkPaywallAccess(visitorId: string, articleId: string) {
+  const windowStart = new Date(Date.now() - WINDOW_DAYS * 86400_000);
+  return prisma.$transaction(async (tx) => {
+    // Serialize quota checks across all replicas, including repeat views of the same article.
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${visitorId}, 0))::text`;
+    const existing = await tx.articleView.findFirst({
+      where: { visitorId, articleId, createdAt: { gte: windowStart } }, select: { id: true },
     });
-    if (current >= FREE_LIMIT) return { allowed: false, remaining: 0 };
+    const count = await tx.articleView.count({ where: { visitorId, createdAt: { gte: windowStart } } });
+    if (existing) return { allowed: true, remaining: Math.max(0, FREE_LIMIT - count) };
+    if (count >= FREE_LIMIT) return { allowed: false, remaining: 0 };
     await tx.articleView.create({ data: { visitorId, articleId } });
-    return { allowed: true, remaining: FREE_LIMIT - current - 1 };
+    return { allowed: true, remaining: FREE_LIMIT - count - 1 };
   });
-
-  return result;
 }
