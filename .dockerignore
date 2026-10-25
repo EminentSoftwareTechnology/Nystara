@@ -1,0 +1,13 @@
+.git
+.next
+node_modules
+npm-debug.log*
+.env*
+!.env.example
+coverage
+.DS_Store
+*.pem
+README.md
+ARCHITECTURE.md
+CLAUDE.md
+AGENTS.md
