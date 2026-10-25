@@ -1,4 +1,4 @@
-# TechScribe
+# Nystara
 
 A Medium-style technical publishing platform. It currently includes freemium
 reading, Google/GitHub/magic-link auth, basic story publishing, admin tools,

@@ -10,7 +10,7 @@ echo "Starting dev infrastructure (postgres:5432, redis:6379)..."
 docker compose -f docker-compose.dev.yml up -d
 
 echo "Waiting for postgres to be ready..."
-until docker compose -f docker-compose.dev.yml exec -T db pg_isready -U techscribe -q; do
+until docker compose -f docker-compose.dev.yml exec -T db pg_isready -U nystara -q; do
   sleep 1
 done
 
@@ -20,7 +20,7 @@ until docker compose -f docker-compose.dev.yml exec -T redis redis-cli ping | gr
 done
 
 echo "Running database migrations..."
-export DATABASE_URL="postgresql://techscribe:techscribe@localhost:5432/techscribe"
+export DATABASE_URL="postgresql://nystara:nystara@localhost:5432/nystara"
 npx prisma migrate deploy
 
 echo "Starting Next.js on port 6000..."

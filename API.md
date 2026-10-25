@@ -1,6 +1,6 @@
 # API Documentation
 
-Complete API reference for TechScribe endpoints.
+Complete API reference for Nystara endpoints.
 
 ## Table of Contents
 
@@ -12,7 +12,7 @@ Complete API reference for TechScribe endpoints.
 
 ## Authentication
 
-TechScribe uses NextAuth v5 for authentication with the following flows:
+Nystara uses NextAuth v5 for authentication with the following flows:
 
 - **OAuth**: Google and GitHub (requires Turnstile pre-verification)
 - **Magic Link**: Email-based passwordless login (requires Turnstile)
@@ -251,7 +251,7 @@ Authenticate as admin.
 **Request Body:**
 ```json
 {
-  "email": "admin@techscribe.io",
+  "email": "admin@nystara.com",
   "password": "your-password",
   "turnstileToken": "turnstile-response-token"
 }
@@ -301,7 +301,7 @@ Get current admin user profile.
 ```json
 {
   "id": "clx...",
-  "email": "admin@techscribe.io",
+  "email": "admin@nystara.com",
   "name": "Admin User",
   "role": "ADMIN"
 }
@@ -660,3 +660,39 @@ Every API write requires an `Origin` matching the scheme, host and port of `NEXT
 `DELETE /api/me` erases the authenticated non-admin account after billing cancellation. Administrator accounts require another administrator’s deletion request. Cross-author comment replies survive with their parent reference cleared.
 
 Password changes sign the administrator out and revoke all earlier admin JWTs. Passwords are 12+ characters and no more than 72 UTF-8 bytes. Role changes also revoke the target’s existing admin tokens. New articles use a UUID suffix to avoid concurrent slug collisions.
+
+## Two-step verification and passkeys
+
+All routes are `POST` with a JSON body unless noted, sit in the strict credential rate-limit tier, and require a same-origin `Origin` header. A **proof** is `{ "type": "code", "code": "123456" | "abcde-fghjk" }` or `{ "type": "passkey", "response": <WebAuthn assertion> }`.
+
+### Reader sign-in
+
+| Route | Body | Notes |
+|---|---|---|
+| `/api/auth/passkey/options` | — | Discoverable passkey sign-in options. |
+| `/api/auth/passkey/verify` | `{ response }` | Starts a verified Auth.js database session. |
+| `/api/auth/mfa/options` | — | For a session that owes MFA: `{ methods, options }`. |
+| `/api/auth/mfa/verify` | `{ proof }` | Marks the session verified. |
+
+Magic-link and OAuth sign-ins land on `/mfa`, which continues to the next page when no second factor is due.
+
+### Admin sign-in
+
+`POST /api/admin/login` returns `{ mfaRequired: true, methods }` and sets a five-minute `admin_mfa_pending` cookie when the admin has MFA on. Complete it with `/api/admin/login/mfa-options` and `/api/admin/login/mfa` (`{ proof }`). `/api/admin/login/passkey-options` and `/api/admin/login/passkey` (`{ response }`) sign an admin in with a passkey alone.
+
+### Security settings
+
+`GET /api/me/security` (reader session) and `GET /api/admin/security` (admin session) return `{ mfaEnabled, totpEnabled, passkeys, recoveryRemaining }`. Actions are `POST {base}/{action}`:
+
+| Action | Body | Proof |
+|---|---|---|
+| `totp-setup` | — | — |
+| `totp-enable` | `{ code, proof? }` | when another factor exists |
+| `totp-disable` | `{ proof }` | required |
+| `passkey-options` | — | — |
+| `passkey-register` | `{ name, response, proof? }` | when another factor exists |
+| `passkey-delete` | `{ id, proof }` | required |
+| `recovery-regenerate` | `{ proof }` | required |
+| `proof-options` | — | returns passkey options for a proof |
+
+The first factor returns ten recovery codes once. A missing or rejected proof returns `403 { proofRequired: true }`.

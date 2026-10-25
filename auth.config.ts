@@ -13,7 +13,7 @@ async function isValidAdminToken(token: string): Promise<boolean> {
   try {
     const { payload } = await jwtVerify(token, new TextEncoder().encode(secret), {
       algorithms: ["HS256"],
-      audience: "techscribe:admin",
+      audience: "nystara:admin",
     });
     return payload.role === "ADMIN";
   } catch {
@@ -38,11 +38,11 @@ export const authConfig = {
     process.env.NODE_ENV === "production"
       ? Resend({
           apiKey: process.env.RESEND_API_KEY!,
-          from: "noreply@techscribe.io",
+          from: "noreply@nystara.com",
         })
       : Nodemailer({
           server: process.env.EMAIL_SERVER ?? "smtp://127.0.0.1:1025",
-          from: process.env.EMAIL_FROM ?? "TechScribe <noreply@techscribe.local>",
+          from: process.env.EMAIL_FROM ?? "Nystara <noreply@nystara.local>",
         }),
   ],
   callbacks: {

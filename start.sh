@@ -62,10 +62,11 @@ import { randomBytes } from 'node:crypto';
 const password = randomBytes(24).toString('hex');
 let content = readFileSync('.env.example', 'utf8');
 const values = {
-  DATABASE_URL: 'postgresql://techscribe:techscribe@127.0.0.1:5432/techscribe',
+  DATABASE_URL: 'postgresql://nystara:nystara@127.0.0.1:5432/nystara',
   REDIS_URL: 'redis://127.0.0.1:6379',
   NEXTAUTH_SECRET: randomBytes(32).toString('hex'),
   ADMIN_JWT_SECRET: randomBytes(32).toString('hex'),
+  MFA_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
   POSTGRES_PASSWORD: password,
 };
 for (const [key, value] of Object.entries(values)) content = content.replace(new RegExp(`^${key}=.*$`, 'm'), `${key}=${value}`);
@@ -91,6 +92,7 @@ if (process.env.NODE_ENV === 'production') {
   const site = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
   if (!site || /^[123]x0{10,}/.test(site)) throw new Error("A real production Turnstile site key is required");
   if (!process.env.REDIS_URL) throw new Error('REDIS_URL is required in production');
+  if (Buffer.from(process.env.MFA_ENCRYPTION_KEY ?? '', 'base64').length !== 32) throw new Error('MFA_ENCRYPTION_KEY must be 32 random bytes, base64-encoded');
 }
 JS
 if [ "$MODE" = docker ]; then

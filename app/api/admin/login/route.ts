@@ -3,7 +3,8 @@ import { audit } from "@/lib/audit";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { createAdminSession, setAdminSessionCookie } from "@/lib/admin-session";
+import { createAdminSession, setAdminMfaPending, setAdminSessionCookie } from "@/lib/admin-session";
+import { mfaMethods } from "@/lib/mfa";
 import { verifyTurnstile } from "@/lib/turnstile";
 import { readJson } from "@/lib/request";
 
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
 
   const user = await prisma.user.findUnique({
     where: { email },
-    select: { id: true, email: true, role: true, passwordHash: true, sessionVersion: true },
+    select: { id: true, email: true, role: true, passwordHash: true, sessionVersion: true, mfaEnabled: true },
   });
 
   // Always run bcrypt so response time doesn't reveal whether the account exists.
@@ -39,6 +40,11 @@ export async function POST(req: NextRequest) {
   if (!user || user.role !== "ADMIN" || !user.passwordHash || !matches) {
     audit("admin_login", "denied");
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+  }
+
+  if (user.mfaEnabled) {
+    await setAdminMfaPending(user.id, user.sessionVersion);
+    return NextResponse.json({ mfaRequired: true, methods: await mfaMethods(user.id) });
   }
 
   const token = await createAdminSession({ sub: user.id, email: user.email, role: user.role, version: user.sessionVersion });

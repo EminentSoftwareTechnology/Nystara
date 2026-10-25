@@ -1,6 +1,6 @@
-# Contributing to TechScribe
+# Contributing to Nystara
 
-Thank you for considering contributing to TechScribe! This document provides guidelines and instructions for contributing.
+Thank you for considering contributing to Nystara! This document provides guidelines and instructions for contributing.
 
 ## Table of Contents
 
@@ -33,8 +33,8 @@ Thank you for considering contributing to TechScribe! This document provides gui
 1. Fork the repository
 2. Clone your fork:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/techscribe.git
-   cd techscribe
+   git clone https://github.com/YOUR_USERNAME/nystara.git
+   cd nystara
    ```
 
 3. Install dependencies:

@@ -60,7 +60,7 @@ export default function SignupPage() {
       return;
     }
 
-    await signIn(provider, { callbackUrl: "/" });
+    await signIn(provider, { callbackUrl: "/mfa" });
   }
 
   if (state === "sent") {

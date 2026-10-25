@@ -2,7 +2,7 @@
 
 Security review deployment requirements take precedence over older examples below: use the patched lockfile; configure shared `REDIS_URL`, canonical `NEXTAUTH_URL`, separate random admin/auth secrets, and real Turnstile keys. Set the public Turnstile site key as a Docker build argument. Database URLs belong in runtime variables, not build arguments. Verify proxy header behavior before enabling `TRUST_PROXY_IP=1`; require ingress DDoS/connection/body limits, private data stores, and daily `npm run db:cleanup` from a maintenance environment with dev tools installed. Apply migration `5_security_review` before serving the new app; administrators must sign in again. See [SECURITY_REVIEW.md](SECURITY_REVIEW.md).
 
-Deployment guide for TechScribe to various platforms.
+Deployment guide for Nystara to various platforms.
 
 ## Table of Contents
 
@@ -28,7 +28,7 @@ Railway provides both app hosting and managed PostgreSQL in one platform.
 
 1. **Create a new Railway project**
    ```
-   New Project → Deploy from GitHub repo → Select techscribe
+   New Project → Deploy from GitHub repo → Select nystara
    ```
 
 2. **Add PostgreSQL database**
@@ -87,7 +87,7 @@ Host the Next.js app on Vercel, database on Railway.
 
 2. **Deploy to Vercel**
    ```
-   New Project → Import Git Repository → techscribe
+   New Project → Import Git Repository → nystara
    ```
 
 3. **Add environment variables to Vercel**
@@ -108,7 +108,7 @@ Host the Next.js app on Vercel, database on Railway.
    # One-time migration service
    docker run --rm \
      -e DATABASE_URL="$RAILWAY_DATABASE_URL" \
-     ghcr.io/your-username/techscribe:latest \
+     ghcr.io/your-username/nystara:latest \
      npx prisma migrate deploy
    ```
    
@@ -137,14 +137,14 @@ Deploy anywhere that supports Docker (DigitalOcean, AWS, GCP, Azure, etc.).
 ### Build Image
 
 ```bash
-docker build -t techscribe:latest .
+docker build -t nystara:latest .
 ```
 
 ### Run Container
 
 ```bash
 docker run -d \
-  --name techscribe \
+  --name nystara \
   -p 6000:3000 \
   -e DATABASE_URL="postgresql://..." \
   -e NEXTAUTH_URL="https://yourdomain.com" \
@@ -159,7 +159,7 @@ docker run -d \
   -e ADMIN_JWT_SECRET="..." \
   -e STRIPE_SECRET_KEY="..." \
   -e BLOB_READ_WRITE_TOKEN="..." \
-  techscribe:latest
+  nystara:latest
 ```
 
 ### Docker Compose (Full Stack)
@@ -359,12 +359,12 @@ Keep tagged images:
 
 ```bash
 # Tag each release
-docker tag techscribe:latest techscribe:v0.1.0
+docker tag nystara:latest nystara:v0.1.0
 
 # Rollback
-docker stop techscribe
-docker rm techscribe
-docker run ... techscribe:v0.1.0
+docker stop nystara
+docker rm nystara
+docker run ... nystara:v0.1.0
 ```
 
 ---
@@ -385,11 +385,11 @@ Use `pg_dump` via cron:
 #!/bin/bash
 BACKUP_DIR=/backups
 DATE=$(date +%Y%m%d_%H%M%S)
-pg_dump $DATABASE_URL > $BACKUP_DIR/techscribe_$DATE.sql
-gzip $BACKUP_DIR/techscribe_$DATE.sql
+pg_dump $DATABASE_URL > $BACKUP_DIR/nystara_$DATE.sql
+gzip $BACKUP_DIR/nystara_$DATE.sql
 
 # Keep last 30 days
-find $BACKUP_DIR -name "techscribe_*.sql.gz" -mtime +30 -delete
+find $BACKUP_DIR -name "nystara_*.sql.gz" -mtime +30 -delete
 ```
 
 ---
@@ -398,7 +398,7 @@ find $BACKUP_DIR -name "techscribe_*.sql.gz" -mtime +30 -delete
 
 ### App won't start
 
-1. Check logs: `docker logs techscribe` or Railway logs
+1. Check logs: `docker logs nystara` or Railway logs
 2. Verify `DATABASE_URL` is correct
 3. Ensure migrations ran successfully
 4. Check for missing required environment variables
@@ -485,5 +485,5 @@ find $BACKUP_DIR -name "techscribe_*.sql.gz" -mtime +30 -delete
 ## Support
 
 - **Documentation**: See README.md, ARCHITECTURE.md, API.md
-- **Issues**: [GitHub Issues](https://github.com/your-repo/techscribe/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/your-repo/techscribe/discussions)
+- **Issues**: [GitHub Issues](https://github.com/your-repo/nystara/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/your-repo/nystara/discussions)

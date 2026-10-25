@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
 import dynamic from "next/dynamic";
+import PasskeySignInButton from "@/components/security/PasskeySignInButton";
 
 const TurnstileWidget = dynamic(
   () => import("@/components/auth/TurnstileWidget"),
@@ -60,7 +61,7 @@ export default function LoginPage() {
       return;
     }
 
-    await signIn(provider, { callbackUrl: "/" });
+    await signIn(provider, { callbackUrl: "/mfa" });
   }
 
   if (state === "sent") {
@@ -100,6 +101,15 @@ export default function LoginPage() {
           Sign up
         </Link>
       </p>
+
+      <div className="mb-3">
+        <PasskeySignInButton
+          optionsUrl="/api/auth/passkey/options"
+          verifyUrl="/api/auth/passkey/verify"
+          redirectTo="/"
+          className="rounded-lg bg-gray-900 dark:bg-white px-4 py-2.5 text-sm font-medium text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-100 transition-colors"
+        />
+      </div>
 
       {/* OAuth */}
       <div className="space-y-3 mb-6">

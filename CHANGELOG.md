@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to TechScribe will be documented in this file.
+All notable changes to Nystara will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Passkeys (WebAuthn) for passwordless sign-in and as a second factor, for readers and admins
+- Authenticator-app (TOTP) two-step verification with single-use recovery codes
+- `/me/security` and `/admin/security` settings pages, and a `/mfa` sign-in challenge
+- Nystara design system across the admin console
 - Comprehensive documentation (API.md, CONTRIBUTING.md, SECURITY.md)
 - Environment variable validation utility
 - Admin panel with user and article management
@@ -18,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Member-only article support
 
 ### Changed
+- Renamed the project from TechScribe to Nystara (package, docs, Docker, JWT audiences, email sender)
+- Upgraded nodemailer to 10.2.1 (fixes GHSA-c7w3-x93f-qmm8 and 16 related advisories); `npm audit` reports 0 vulnerabilities
 - Updated documentation with cross-references
 - Improved type safety across API routes
 

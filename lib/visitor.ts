@@ -2,7 +2,7 @@ import { SignJWT, jwtVerify } from "jose";
 
 export const VISITOR_COOKIE = "reader_session";
 export const VISITOR_MAX_AGE = 30 * 24 * 60 * 60;
-const audience = "techscribe:reader";
+const audience = "nystara:reader";
 
 export async function readerIdentity(token?: string) {
   const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET);

@@ -72,12 +72,22 @@ function SearchIcon() {
   );
 }
 
+function SecurityIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6Z" />
+      <path d="m9 12 2 2 4-4" />
+    </svg>
+  );
+}
+
 const navItems = [
   { href: "/", label: "Home", Icon: HomeIcon },
   { href: "/me/library", label: "Library", Icon: LibraryIcon },
   { href: "/profile", label: "Profile", Icon: ProfileIcon },
   { href: "/me/stories", label: "Stories", Icon: StoriesIcon },
   { href: "/me/stats", label: "Stats", Icon: StatsIcon },
+  { href: "/me/security", label: "Security", Icon: SecurityIcon },
 ];
 
 export default function AppSidebar({ username }: Props) {

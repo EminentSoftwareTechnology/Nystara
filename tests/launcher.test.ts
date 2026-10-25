@@ -6,7 +6,7 @@ import { join, resolve, dirname } from "node:path";
 import { spawnSync } from "node:child_process";
 
 test("launcher treats dotenv as data, honors overrides and passes the requested port", () => {
-  const root = mkdtempSync(join(tmpdir(), "techscribe-launcher-"));
+  const root = mkdtempSync(join(tmpdir(), "nystara-launcher-"));
   try {
     mkdirSync(join(root, "scripts")); mkdirSync(join(root, "bin"));
     cpSync("start.sh", join(root, "start.sh"));

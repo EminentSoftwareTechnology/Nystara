@@ -25,6 +25,10 @@ model User {
   sessionVersion   Int      @default(0)
   createdAt        DateTime @default(now())
   stripeCustomerId String?  @unique
+  mfaEnabled       Boolean   @default(false)
+  totpSecret       String?
+  totpEnabledAt    DateTime?
+  totpLastStep     Int?
 
   accounts     Account[]
   sessions     Session[]
@@ -35,6 +39,8 @@ model User {
   following    Follow[]      @relation("follower")
   followers    Follow[]      @relation("following")
   subscription Subscription?
+  passkeys      Passkey[]
+  recoveryCodes RecoveryCode[]
 }
 
 model Article {
@@ -192,9 +198,10 @@ model Account {
 
 model Session {
   id           String   @id @default(cuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
+  sessionToken  String    @unique
+  userId        String
+  expires       DateTime
+  mfaVerifiedAt DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -205,4 +212,45 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model Passkey {
+  id           String    @id @default(cuid())
+  userId       String
+  credentialId String    @unique
+  publicKey    Bytes
+  counter      BigInt    @default(0)
+  transports   String[]
+  deviceType   String
+  backedUp     Boolean
+  name         String
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model RecoveryCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String    @unique
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// Single-use WebAuthn challenges. Rows are deleted when consumed or by the retention cleanup.
+model AuthChallenge {
+  id        String   @id @default(cuid())
+  challenge String   @unique
+  purpose   String
+  userId    String?
+  expiresAt DateTime
+
+  @@index([expiresAt])
 }
