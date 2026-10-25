@@ -1,3 +1,4 @@
+import { notifyUser } from "@/lib/email/notifications";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
@@ -56,7 +57,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   const { tagSlugs, contentText, published, ...rest } = parsed.data;
 
-  const existing = await prisma.article.findUnique({ where: { id }, select: { published: true } });
+  const existing = await prisma.article.findUnique({ where: { id }, select: { published: true, authorId: true } });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const wordCount = contentText ? contentText.trim().split(/\s+/).filter(Boolean).length : undefined;
@@ -88,6 +89,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     select: { id: true, slug: true, title: true, published: true },
   });
 
+  if (published !== undefined && published !== existing.published) {
+    await notifyUser(existing.authorId, published ? "story-published" : "story-unpublished");
+  }
   return NextResponse.json(article);
 }
 
@@ -96,9 +100,10 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  const existing = await prisma.article.findUnique({ where: { id }, select: { id: true } });
+  const existing = await prisma.article.findUnique({ where: { id }, select: { authorId: true } });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   await prisma.article.delete({ where: { id } });
+  await notifyUser(existing.authorId, "story-deleted");
   return NextResponse.json({ ok: true });
 }

@@ -1,3 +1,4 @@
+import { notifyUser } from "@/lib/email/notifications";
 import NextAuth from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authAdapter } from "@/lib/auth-adapter";
@@ -48,6 +49,7 @@ const nextAuth = NextAuth((req) => ({
       if (!user.email || !user.id) return;
       const username = `writer-${randomUUID()}`;
       await prisma.user.update({ where: { id: user.id }, data: { username } });
+      await notifyUser(user.id, "welcome");
     },
   },
 }));

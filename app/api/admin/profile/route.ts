@@ -1,3 +1,4 @@
+import { notifyUser } from "@/lib/email/notifications";
 import { NextRequest, NextResponse } from "next/server";
 import { audit } from "@/lib/audit";
 import bcrypt from "bcryptjs";
@@ -51,6 +52,8 @@ export async function PATCH(req: NextRequest) {
   if (newPassword) {
     await clearAdminSessionCookie();
     audit("password_change", "success");
+    await notifyUser(user.id, "password-changed");
   }
+  if (name !== undefined || bio !== undefined) await notifyUser(user.id, "profile-updated");
   return NextResponse.json(user);
 }

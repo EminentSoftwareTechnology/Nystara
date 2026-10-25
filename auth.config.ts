@@ -15,12 +15,14 @@ const ADMIN_COOKIE = "admin_session";
 function confirmBeforeSignIn(provider: EmailConfig): EmailConfig {
   return {
     ...provider,
-    sendVerificationRequest(params) {
+    maxAge: 24 * 60 * 60,
+    async sendVerificationRequest(params) {
       const callback = new URL(params.url);
       const confirm = new URL("/verify", callback.origin);
       confirm.search = callback.search;
       confirm.searchParams.set("provider", provider.id);
-      return provider.sendVerificationRequest({ ...params, url: confirm.toString() });
+      const { sendSignInEmail } = await import("@/lib/email/auth");
+      return sendSignInEmail({ ...params, url: confirm.toString() });
     },
   };
 }

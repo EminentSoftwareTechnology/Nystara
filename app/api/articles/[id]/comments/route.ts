@@ -1,3 +1,4 @@
+import { notifyUser } from "@/lib/email/notifications";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { readJson } from "@/lib/request";
@@ -45,21 +46,23 @@ export async function POST(
 
   const article = await prisma.article.findFirst({
     where: { id, published: true },
-    select: { authorId: true },
+    select: { authorId: true, slug: true, author: { select: { username: true } } },
   });
   if (!article)
     return NextResponse.json({ error: "Story not found." }, { status: 404 });
   // Replies are one level deep, so a parent must be a live top-level comment on this story.
+  let parentAuthorId: string | null = null;
   if (parentId) {
     const parent = await prisma.comment.findFirst({
       where: { id: parentId, articleId: id, parentId: null, deletedAt: null },
-      select: { id: true },
+      select: { id: true, authorId: true },
     });
     if (!parent)
       return NextResponse.json(
         { error: "That comment is no longer available." },
         { status: 404 },
       );
+    parentAuthorId = parent.authorId;
   }
 
   const comment = await prisma.comment.create({
@@ -72,6 +75,17 @@ export async function POST(
     },
     select: commentSelect,
   });
+  const actionPath = article.author.username
+    ? `/${encodeURIComponent(article.author.username)}/${encodeURIComponent(article.slug)}`
+    : "/me/stories";
+  const recipients = new Set<string>();
+  if (parentAuthorId && parentAuthorId !== voter.userId) {
+    recipients.add(parentAuthorId);
+    await notifyUser(parentAuthorId, "reply-received", { actionPath });
+  }
+  if (article.authorId !== voter.userId && !recipients.has(article.authorId)) {
+    await notifyUser(article.authorId, "comment-received", { actionPath });
+  }
   return NextResponse.json(
     toCommentView(comment, {
       userId: voter.userId,

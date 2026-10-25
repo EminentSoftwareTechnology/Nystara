@@ -1,3 +1,4 @@
+import { notifyUser } from "@/lib/email/notifications";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -26,5 +27,8 @@ export async function DELETE(
     where: { id },
     data: { deletedAt: new Date() },
   });
+  if (comment.authorId && comment.authorId !== session.user.id) {
+    await notifyUser(comment.authorId, "comment-removed");
+  }
   return new NextResponse(null, { status: 204 });
 }

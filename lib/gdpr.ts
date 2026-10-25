@@ -1,3 +1,4 @@
+import { notifyEmail } from "@/lib/email/notifications";
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { eraseUserImages } from "@/lib/r2";
@@ -22,4 +23,5 @@ export async function eraseUser(userId: string, email: string): Promise<void> {
     prisma.user.delete({ where: { id: userId } }),
   ]);
   audit("account_erasure", "success");
+  await notifyEmail(email, "account-deleted");
 }

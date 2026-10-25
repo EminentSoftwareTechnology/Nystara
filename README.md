@@ -190,6 +190,8 @@ sign-in.
 | `npm run db:seed` / `db:seed:demo` | Admin seed / demo content |
 | `npm run db:cleanup` | Delete reader views older than 30 days and expired sessions, tokens and passkey challenges. Run daily. |
 
+Email templates, event coverage, unsubscribe and Mailpit checks: [EMAILS.md](EMAILS.md).
+
 ## Environment variables
 
 [.env.example](.env.example) lists every variable. The essentials:
