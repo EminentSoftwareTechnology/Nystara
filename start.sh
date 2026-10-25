@@ -45,6 +45,32 @@ require_container_engine() {
     docker info >/dev/null 2>&1 || die "Docker daemon is not running."
   fi
 }
+# Only listening sockets are matched, so browser tabs connected to the port are left alone.
+free_port() {
+  local pids
+  pids="$(lsof -nP -t -iTCP:"$1" -sTCP:LISTEN 2>/dev/null || true)"
+  [ -z "$pids" ] && return
+  log "Port $1 in use; stopping PID(s) $(echo $pids)"
+  kill $pids 2>/dev/null || true
+  for _ in 1 2 3 4 5; do
+    lsof -nP -t -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1 || return
+    sleep 1
+  done
+  kill -9 $pids 2>/dev/null || true
+}
+# Opens a new tab in the default browser once the app responds.
+open_when_ready() {
+  local url="$1"
+  (
+    for _ in $(seq 1 600); do
+      if curl -s -o /dev/null "$url"; then
+        if command -v open >/dev/null 2>&1; then open "$url"; elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$url"; fi
+        exit 0
+      fi
+      sleep 1
+    done
+  ) >/dev/null 2>&1 &
+}
 case "$MODE" in
   -h|--help|help) head -n 3 "$0" | tail -n 2 | sed 's/^# //'; exit 0 ;;
   dev|prod|docker) ;;
@@ -97,6 +123,7 @@ if (process.env.NODE_ENV === 'production') {
 JS
 if [ "$MODE" = docker ]; then
   require_container_engine
+  open_when_ready "$NEXTAUTH_URL"
   compose -f docker-compose.yml up --build
   exit $?
 fi
@@ -115,6 +142,8 @@ fi
 log "Generating Prisma client and applying migrations"
 npm run db:generate
 npm run db:migrate:deploy
+free_port "${PORT:-6000}"
+open_when_ready "$NEXTAUTH_URL"
 if [ "$MODE" = prod ]; then
   npm run build
   exec npm run start -- --hostname "${HOST:-127.0.0.1}" --port "${PORT:-6000}"
