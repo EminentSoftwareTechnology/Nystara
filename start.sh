@@ -9,9 +9,41 @@ log() { printf '==> %s\n' "$*"; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 require() { command -v "$1" >/dev/null 2>&1 || die "$1 is required."; }
 compose() {
-  if docker compose version >/dev/null 2>&1; then docker compose "$@";
-  elif command -v docker-compose >/dev/null 2>&1; then docker-compose "$@";
-  else die "Docker Compose is required."; fi
+  case "${CONTAINER_ENGINE:-}" in
+    podman)
+      if podman compose version >/dev/null 2>&1; then podman compose "$@";
+      elif command -v podman-compose >/dev/null 2>&1; then podman-compose "$@";
+      else die "Podman Compose is required (install podman-compose)."; fi
+      ;;
+    docker)
+      if docker compose version >/dev/null 2>&1; then docker compose "$@";
+      elif command -v docker-compose >/dev/null 2>&1; then docker-compose "$@";
+      else die "Docker Compose is required."; fi
+      ;;
+    *) die "CONTAINER_ENGINE must be podman or docker." ;;
+  esac
+}
+select_container_engine() {
+  if [ -n "${CONTAINER_ENGINE:-}" ]; then
+    case "$CONTAINER_ENGINE" in podman|docker) return ;; *) die "CONTAINER_ENGINE must be podman or docker." ;; esac
+  fi
+  if command -v podman >/dev/null 2>&1 && { podman compose version >/dev/null 2>&1 || command -v podman-compose >/dev/null 2>&1; }; then
+    export CONTAINER_ENGINE=podman
+  elif command -v docker >/dev/null 2>&1 && { docker compose version >/dev/null 2>&1 || command -v docker-compose >/dev/null 2>&1; }; then
+    export CONTAINER_ENGINE=docker
+  else
+    die "Podman Compose or Docker Compose is required."
+  fi
+}
+require_container_engine() {
+  select_container_engine
+  if [ "$CONTAINER_ENGINE" = podman ]; then
+    require podman
+    podman info >/dev/null 2>&1 || die "Podman is not running. On macOS, start its machine with 'podman machine start'."
+  else
+    require docker
+    docker info >/dev/null 2>&1 || die "Docker daemon is not running."
+  fi
 }
 case "$MODE" in
   -h|--help|help) head -n 3 "$0" | tail -n 2 | sed 's/^# //'; exit 0 ;;
@@ -62,19 +94,21 @@ if (process.env.NODE_ENV === 'production') {
 }
 JS
 if [ "$MODE" = docker ]; then
-  require docker
-  docker info >/dev/null 2>&1 || die "Docker daemon is not running."
+  require_container_engine
   compose -f docker-compose.yml up --build
   exit $?
 fi
 DB_LOCAL="$(node -e 'const u=new URL(process.env.DATABASE_URL);console.log(["localhost","127.0.0.1","[::1]"].includes(u.hostname)?"1":"0")')"
 if [ "$DB_LOCAL" = 1 ]; then
-  require docker
-  docker info >/dev/null 2>&1 || die "Docker daemon is not running."
-  log "Starting local Postgres and Redis"
+  require_container_engine
+  log "Starting local Postgres, Redis, and Mailpit with $CONTAINER_ENGINE"
   compose -f docker-compose.dev.yml up -d --wait --wait-timeout 60
 elif [ "${ALLOW_REMOTE_MIGRATE:-0}" != 1 ]; then
   die "Remote database migrations require ALLOW_REMOTE_MIGRATE=1."
+elif [ "$MODE" = dev ]; then
+  require_container_engine
+  log "Starting local Mailpit with $CONTAINER_ENGINE"
+  compose -f docker-compose.dev.yml up -d --wait --wait-timeout 60 mailpit
 fi
 log "Generating Prisma client and applying migrations"
 npm run db:generate

@@ -99,15 +99,15 @@ Browser → Next.js dynamic rendering (private, no-store) → Prisma → Postgre
 
 ## Local Development
 
-Use Node 22.12+ and Docker with Compose v2.
+Use Node 22.12+ and Podman with `podman-compose` (or Docker Compose v2). The launcher prefers Podman when both have a Compose provider; set `CONTAINER_ENGINE=docker` to select Docker.
 
 ```bash
 ./start.sh
 ```
 
-The launcher installs locked dependencies, creates a private `.env.local` with random signing secrets if no env file exists, starts loopback-only PostgreSQL and Redis, generates Prisma, applies migrations, and starts development on port 3000. It parses env files as dotenv data. Existing process variables override env files; `.env.local` overrides `.env`. It does not seed or reset your database.
+The launcher installs locked dependencies, creates a private `.env.local` with random signing secrets if no env file exists, starts loopback-only PostgreSQL, Redis, and Mailpit, generates Prisma, applies migrations, and starts development on port 3000. Local sign-in email is captured by Mailpit at [http://localhost:8025](http://localhost:8025); its SMTP server listens on `127.0.0.1:1025`. It parses env files as dotenv data. Existing process variables override env files; `.env.local` overrides `.env`. It does not seed or reset your database.
 
-Configure Google/GitHub or Resend credentials to use the corresponding sign-in flow. Development can use Turnstile test keys; production rejects them. Seed the first administrator only after setting `ADMIN_EMAIL` and `ADMIN_PASSWORD` (12+ characters, at most 72 UTF-8 bytes) in the environment:
+Configure Google/GitHub credentials to use those sign-in flows. Development magic-link emails are captured locally; production uses Resend. Development can use Turnstile test keys; production rejects them. Seed the first administrator only after setting `ADMIN_EMAIL` and `ADMIN_PASSWORD` (12+ characters, at most 72 UTF-8 bytes) in the environment:
 
 ```bash
 npm run db:seed
@@ -124,7 +124,7 @@ PORT=3001 ./start.sh dev
 ./start.sh docker
 ```
 
-Set `POSTGRES_PASSWORD` to a random hex value, `NEXTAUTH_URL` to the browser-visible origin, strong signing secrets, and real Turnstile site/secret keys. The site key is a public build argument; database URLs and signing secrets are runtime variables. Existing database volumes retain their original password; changing an env value does not rotate an existing database credential.
+This full Compose stack runs with the selected Docker or Podman engine. Set `POSTGRES_PASSWORD` to a random hex value, `NEXTAUTH_URL` to the browser-visible origin, strong signing secrets, and real Turnstile site/secret keys. The site key is a public build argument; database URLs and signing secrets are runtime variables. Existing database volumes retain their original password; changing an env value does not rotate an existing database credential.
 
 For an existing database or hosted deployment, use the runtime variables in [.env.example](.env.example). Production requires `REDIS_URL` for shared rate limits. Leave `TRUST_PROXY_IP=0` until you verify that ingress appends/overwrites the forwarding header and blocks direct app access. With it disabled, clients share conservative aggregate buckets. Use a dedicated limiter Redis with bounded memory and `noeviction`, so eviction cannot reset blocked buckets.
 
