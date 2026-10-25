@@ -105,18 +105,18 @@ Use Node 22.12+ and Podman with `podman-compose` (or Docker Compose v2). The lau
 ./start.sh
 ```
 
-The launcher installs locked dependencies, creates a private `.env.local` with random signing secrets if no env file exists, starts loopback-only PostgreSQL, Redis, and Mailpit, generates Prisma, applies migrations, and starts development on port 3000. Local sign-in email is captured by Mailpit at [http://localhost:8025](http://localhost:8025); its SMTP server listens on `127.0.0.1:1025`. It parses env files as dotenv data. Existing process variables override env files; `.env.local` overrides `.env`. It does not seed or reset your database.
+The launcher installs locked dependencies, creates a private `.env.local` with random signing secrets if no env file exists, starts loopback-only PostgreSQL, Redis, and Mailpit, generates Prisma, applies migrations, and starts development on port 6000. Local sign-in email is captured by Mailpit at [http://localhost:8025](http://localhost:8025); its SMTP server listens on `127.0.0.1:1025`. It parses env files as dotenv data. Existing process variables override env files; `.env.local` overrides `.env`. It does not seed or reset your database.
 
 Configure Google/GitHub credentials to use those sign-in flows. Development magic-link emails are captured locally; production uses Resend. Development can use Turnstile test keys; production rejects them. Seed the first administrator only after setting `ADMIN_EMAIL` and `ADMIN_PASSWORD` (12+ characters, at most 72 UTF-8 bytes) in the environment:
 
 ```bash
 npm run db:seed
-PORT=3001 ./start.sh dev
+PORT=6001 ./start.sh dev
 ./start.sh prod
 ./start.sh --help
 ```
 
-`HOST` defaults to `127.0.0.1`. Set it explicitly if LAN access is required. Remote databases require `ALLOW_REMOTE_MIGRATE=1`; startup never resets or seeds them automatically. `prod` builds locally and requires production CAPTCHA keys and Redis. Keep development infrastructure credentials for local use only.
+`HOST` defaults to `127.0.0.1`. Set it explicitly if LAN access is required. If you override `PORT`, set `NEXTAUTH_URL` to the same local origin so same-origin write checks continue to pass. Remote databases require `ALLOW_REMOTE_MIGRATE=1`; startup never resets or seeds them automatically. `prod` builds locally and requires production CAPTCHA keys and Redis. Keep development infrastructure credentials for local use only.
 
 ## Docker
 

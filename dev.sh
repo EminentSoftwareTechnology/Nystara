@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Ports
-# Next.js : 3000
+# Next.js : 6000
 # PostgreSQL: 5432
 # Redis    : 6379
 
@@ -23,5 +23,5 @@ echo "Running database migrations..."
 export DATABASE_URL="postgresql://techscribe:techscribe@localhost:5432/techscribe"
 npx prisma migrate deploy
 
-echo "Starting Next.js on port 3000..."
-npm run dev
+echo "Starting Next.js on port 6000..."
+npm run dev -- --port 6000
