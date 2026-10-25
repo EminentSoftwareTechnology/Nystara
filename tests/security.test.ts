@@ -120,4 +120,3 @@ test("saturating the dev limiter does not reset existing blocked buckets", async
   assert.equal((await rateLimit(key, 1, 60_000)).ok, false);
   assert.equal((await rateLimit("new-key", 1, 60_000)).ok, false);
 });
-
