@@ -26,6 +26,7 @@ const optionalEnvVars = [
   "STRIPE_SECRET_KEY",
   "STRIPE_WEBHOOK_SECRET",
   "BLOB_READ_WRITE_TOKEN",
+  "CLAMAV_HOST",
 ] as const;
 
 type RequiredEnvVar = (typeof requiredEnvVars)[number];

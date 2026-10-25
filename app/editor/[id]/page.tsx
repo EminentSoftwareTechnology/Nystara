@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPremiumAccess } from "@/lib/premium";
 import { legacyDocument, storyNode } from "@/lib/story-document";
+import { toStoryTheme } from "@/lib/story-theme";
 import StoryEditor from "@/app/new-story/StoryEditor";
 
 export default async function EditStoryPage({
@@ -25,6 +26,7 @@ export default async function EditStoryPage({
         contentText: true,
         memberOnly: true,
         coverImage: true,
+        theme: true,
         author: { select: { username: true } },
       },
     }),
@@ -49,6 +51,7 @@ export default async function EditStoryPage({
       premium={hasPremiumAccess(user.subscription)}
       initial={{
         ...article,
+        theme: toStoryTheme(article.theme),
         content:
           doc.success && doc.data.content
             ? doc.data
