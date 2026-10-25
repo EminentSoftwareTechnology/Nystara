@@ -88,8 +88,8 @@ import { randomBytes } from 'node:crypto';
 const password = randomBytes(24).toString('hex');
 let content = readFileSync('.env.example', 'utf8');
 const values = {
-  DATABASE_URL: 'postgresql://nystara:nystara@127.0.0.1:5432/nystara',
-  REDIS_URL: 'redis://127.0.0.1:6379',
+  DATABASE_URL: 'postgresql://nystara:nystara@127.0.0.1:5442/nystara',
+  REDIS_URL: 'redis://127.0.0.1:6389',
   NEXTAUTH_SECRET: randomBytes(32).toString('hex'),
   ADMIN_JWT_SECRET: randomBytes(32).toString('hex'),
   MFA_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
@@ -142,10 +142,10 @@ fi
 log "Generating Prisma client and applying migrations"
 npm run db:generate
 npm run db:migrate:deploy
-free_port "${PORT:-6000}"
+free_port "${PORT:-6100}"
 open_when_ready "$NEXTAUTH_URL"
 if [ "$MODE" = prod ]; then
   npm run build
-  exec npm run start -- --hostname "${HOST:-127.0.0.1}" --port "${PORT:-6000}"
+  exec npm run start -- --hostname "${HOST:-127.0.0.1}" --port "${PORT:-6100}"
 fi
-exec npm run dev -- --hostname "${HOST:-127.0.0.1}" --port "${PORT:-6000}"
+exec npm run dev -- --hostname "${HOST:-127.0.0.1}" --port "${PORT:-6100}"

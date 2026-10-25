@@ -37,7 +37,7 @@ services:
         NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY:?Set a production Turnstile site key}
     restart: unless-stopped
     ports:
-      - "${PORT:-6000}:3000"
+      - "${PORT:-6100}:3000"
     environment:
       DATABASE_URL: postgresql://nystara:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@db:5432/nystara
       REDIS_URL: redis://redis:6379

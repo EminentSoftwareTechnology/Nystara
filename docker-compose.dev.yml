@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: nystara
       POSTGRES_DB: nystara
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:5442:5432"
     volumes:
       - pgdata_dev:/var/lib/postgresql/data
     healthcheck:
@@ -21,7 +21,7 @@ services:
     command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "noeviction"]
     restart: unless-stopped
     ports:
-      - "127.0.0.1:6379:6379"
+      - "127.0.0.1:6389:6379"
     volumes:
       - redisdata_dev:/data
     healthcheck:
@@ -36,8 +36,8 @@ services:
     environment:
       MP_MAX_MESSAGES: 500
     ports:
-      - "127.0.0.1:1025:1025"
-      - "127.0.0.1:8025:8025"
+      - "127.0.0.1:1035:1025"
+      - "127.0.0.1:8035:8025"
     healthcheck:
       test: ["CMD", "/mailpit", "readyz"]
       interval: 5s
