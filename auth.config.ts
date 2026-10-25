@@ -2,6 +2,7 @@ import type { NextAuthConfig } from "next-auth";
 import Google from "next-auth/providers/google";
 import GitHub from "next-auth/providers/github";
 import Resend from "next-auth/providers/resend";
+import Nodemailer from "next-auth/providers/nodemailer";
 import { jwtVerify } from "jose";
 
 const ADMIN_COOKIE = "admin_session";
@@ -34,10 +35,15 @@ export const authConfig = {
       clientId: process.env.GITHUB_CLIENT_ID!,
       clientSecret: process.env.GITHUB_CLIENT_SECRET!,
     }),
-    Resend({
-      apiKey: process.env.RESEND_API_KEY!,
-      from: "noreply@techscribe.io",
-    }),
+    process.env.NODE_ENV === "production"
+      ? Resend({
+          apiKey: process.env.RESEND_API_KEY!,
+          from: "noreply@techscribe.io",
+        })
+      : Nodemailer({
+          server: process.env.EMAIL_SERVER ?? "smtp://127.0.0.1:1025",
+          from: process.env.EMAIL_FROM ?? "TechScribe <noreply@techscribe.local>",
+        }),
   ],
   callbacks: {
     async authorized({ auth, request }) {
