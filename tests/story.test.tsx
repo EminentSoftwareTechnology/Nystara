@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { articleContent, coverImageUrl } from "../lib/article-schema";
-import { documentText, legacyDocument, storyNode } from "../lib/story-document";
+import { documentText, dropUnsupportedTextStyles, legacyDocument, storyNode } from "../lib/story-document";
 import { parseVideoUrl, safeVideoThumbnail } from "../lib/video";
 import { hasPremiumAccess } from "../lib/premium";
 import { responseText } from "../lib/ai-editor";
@@ -191,4 +191,22 @@ test("AI output consumes only text message parts; invalid uploads cannot masquer
     imageType(Buffer.from([255, 216, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0])),
     "image/jpeg",
   );
+});
+
+test("text pasted with unsupported fonts still saves", () => {
+  const pasted = {
+    type: "doc",
+    content: [{
+      type: "paragraph",
+      content: [
+        { type: "text", text: "Pasted", marks: [{ type: "textStyle", attrs: { fontFamily: "Google Sans Text, sans-serif !important", fontSize: "13px", lineHeight: "1.8" } }] },
+        { type: "text", text: " kept", marks: [{ type: "textStyle", attrs: { fontFamily: "Georgia" } }] },
+      ],
+    }],
+  };
+  assert.equal(articleContent.safeParse(pasted).success, false);
+  const cleaned = dropUnsupportedTextStyles(pasted);
+  assert.equal(articleContent.safeParse(cleaned).success, true);
+  assert.deepEqual(cleaned.content[0].content[0].marks[0].attrs, { fontFamily: null, fontSize: null, lineHeight: "1.8" });
+  assert.deepEqual(cleaned.content[0].content[1].marks[0].attrs, { fontFamily: "Georgia" });
 });

@@ -18,6 +18,25 @@ export const FONT_SIZES = [
   "32px",
 ] as const;
 
+export const LINE_HEIGHTS = ["1.5", "1.8", "2"] as const;
+
+const TEXT_STYLES: Record<string, readonly string[]> = {
+  fontFamily: FONT_FAMILIES,
+  fontSize: FONT_SIZES,
+  lineHeight: LINE_HEIGHTS,
+};
+
+/** Pasted text keeps the source page's fonts; clear any the story schema would reject. */
+export function dropUnsupportedTextStyles<T>(doc: T): T {
+  return JSON.parse(JSON.stringify(doc), (key: string, value: unknown) =>
+    key in TEXT_STYLES &&
+    typeof value === "string" &&
+    !TEXT_STYLES[key].includes(value)
+      ? null
+      : value,
+  );
+}
+
 export function safeLink(value: string): boolean {
   try {
     const url = new URL(value);
@@ -49,7 +68,7 @@ export const storyMark = z.object({
       class: z.string().nullable().optional(),
       fontFamily: z.enum(FONT_FAMILIES).nullable().optional(),
       fontSize: z.enum(FONT_SIZES).nullable().optional(),
-      lineHeight: z.enum(["1.5", "1.8", "2"]).nullable().optional(),
+      lineHeight: z.enum(LINE_HEIGHTS).nullable().optional(),
     })
     .optional(),
 });
