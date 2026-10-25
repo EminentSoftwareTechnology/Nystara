@@ -1,653 +1,613 @@
-# Nystara — Medium-like Technical Publishing Platform
+# Nystara architecture
 
-> A freemium article platform for technical writers. Free reading up to a monthly limit, premium for unlimited access, writer monetization, email digest, and social sharing.
+This document describes the system as it is built today. Each section names the
+files that implement it, so you can check the details in code. Planned work is
+listed separately at the end.
 
-## 📚 Related Documentation
+## Contents
 
-- **[README.md](README.md)** — Quick start and deployment guide
-- **[API.md](API.md)** — Complete API reference
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** — Contribution guidelines
-- **[SECURITY.md](SECURITY.md)** — Security policy and best practices
-
-## 📋 Table of Contents
-
-1. [Product Vision](#1-product-vision)
-2. [Core Features](#2-core-features-mvp--paid)
-3. [High-Level Design](#3-high-level-design-hld)
-4. [Tech Stack](#4-tech-stack-chosen)
-5. [Low-Level Design](#5-low-level-design-lld)
-
----
-
-## 1. Product Vision
-
-| Pillar           | Description                                                                                    |
-| ---------------- | ---------------------------------------------------------------------------------------------- |
-| **Content**      | Long-form technical articles (tutorials, deep-dives, opinions)                                 |
-| **Discovery**    | Tags, topics, search, personalised feed                                                        |
-| **Monetization** | 5 free articles/month → $7/mo or $60/yr for unlimited                                          |
-| **Writers**      | Revenue share based on member read-time (Phase 3, after fraud/tax/Stripe Connect are designed) |
-| **Growth**       | Email digest, social share cards, SEO-first SSR                                                |
+1. [System overview](#1-system-overview)
+2. [Request pipeline](#2-request-pipeline)
+3. [Authentication](#3-authentication)
+4. [Data model](#4-data-model)
+5. [Reading and the paywall](#5-reading-and-the-paywall)
+6. [Reader engagement](#6-reader-engagement)
+7. [Writing: editor, documents and media](#7-writing-editor-documents-and-media)
+8. [AI editor](#8-ai-editor)
+9. [Admin console](#9-admin-console)
+10. [Frontend structure](#10-frontend-structure)
+11. [Privacy and data lifecycle](#11-privacy-and-data-lifecycle)
+12. [Testing and CI](#12-testing-and-ci)
+13. [Not yet implemented](#13-not-yet-implemented)
+14. [Key decisions](#14-key-decisions)
 
 ---
 
-## 2. Core Features (MVP → Paid)
+## 1. System overview
 
-### Phase 1 — Free (MVP)
-
-- [ ] Sign up / sign in (Google OAuth, GitHub OAuth, magic-link email)
-- [ ] Article CRUD with rich text editor (Tiptap)
-- [ ] Tags and topics
-- [ ] Public reader feed (home, topic pages)
-- [ ] Claps / reactions (auth required — anonymous claps deferred to avoid schema split)
-- [ ] Comments (auth required)
-- [ ] Bookmarks / reading list
-- [ ] Author profiles
-- [ ] SEO — per-article OG tags, sitemap, JSON-LD
-
-### Phase 2 — Freemium Gate
-
-- [ ] Soft paywall: 5 free member-only articles per visitor/month (cookie + DB tracking — easy to bypass, acceptable for conversion nudge only, not revenue protection)
-- [ ] Stripe subscription (monthly + annual plans)
-- [ ] Member-only article badge
-- [ ] Writer read-time tracking (internal only — no revenue promises until Phase 3 is fully designed)
-
-### Phase 3 — Writer Monetization (deferred)
-
-- [ ] Stripe Connect for writer payouts
-- [ ] Fraud detection + read-session deduplication + bot filtering
-- [ ] Tax / KYC compliance
-- [ ] Writer earnings dashboard
-- [ ] Revenue share payout logic
-
-### Phase 4 — Growth
-
-- [ ] Weekly email digest (personalised by followed topics)
-- [ ] Auto-generated social share card (OG image via `@vercel/og`)
-- [ ] Social share via share intents (X, LinkedIn, Reddit, HN, native Web Share API) — no direct posting API
-- [ ] Newsletter subscription per writer
-- [ ] Publication (multi-writer channel)
-
----
-
-## 3. High-Level Design (HLD)
+Nystara is a single Next.js 16 application. Pages and API route handlers run in
+one Node.js process (standalone output, Docker image). There are no separate
+services or queues.
 
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│                         CLIENT (Browser)                         │
-│   Next.js 16 App Router · React 19 · TypeScript · Tailwind CSS  │
-└──────────────────────────────┬──────────────────────────────────┘
-                               │  HTTPS
-                               ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    VERCEL EDGE / SERVER                          │
-│                                                                  │
-│  ┌─────────────────┐   ┌──────────────────┐  ┌───────────────┐  │
-│  │  Next.js Pages  │   │  API Routes      │  │  Middleware   │  │
-│  │  (SSR / SSG)    │   │  /api/**         │  │  (auth check  │  │
-│  │  · Home feed    │   │  · Auth          │  │   + paywall)  │  │
-│  │  · Article page │   │  · Articles      │  └───────────────┘  │
-│  │  · Profile      │   │  · Subscriptions │                     │
-│  │  · Editor       │   │  · Payments      │                     │
-│  └─────────────────┘   └──────────────────┘                     │
-└──────────┬──────────────────────┬───────────────────────────────┘
-           │                      │
-     ┌─────▼──────┐        ┌──────▼───────────┐
-     │  Vercel    │        │   External SaaS  │
-     │  Blob      │        │                  │
-     │  (images)  │        │  Resend (email)  │
-     └────────────┘        │  Stripe (pay)    │
-                           │  Google/GitHub   │
-                           │  OAuth           │
-                           └──────────────────┘
-                                    │
-                    ┌───────────────▼───────────────┐
-                    │   Railway — PostgreSQL 16      │
-                    │   (primary data store)         │
-                    └───────────────────────────────┘
+                         Browser (React 19)
+                                 │ HTTPS
+                                 ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│ proxy.ts  (runs before every request)                                │
+│  · API: same-origin write check, rate limit tier, 1 MiB body limit   │
+│  · Pages: per-IP rate limit, admin JWT guard, CSP nonce,             │
+│           signed reader cookie on article pages                      │
+│  · All responses: Cache-Control: private, no-store                   │
+└──────────────┬───────────────────────────────────────┬───────────────┘
+               ▼                                       ▼
+   Server-rendered pages (App Router)        Route handlers (app/api/**)
+               │                                       │
+               └──────────────┬────────────────────────┘
+                              ▼
+               lib/  (auth, mfa, paywall, engagement, media, validation)
+                              │
+     ┌────────────┬───────────┼────────────┬─────────────┬──────────────┐
+     ▼            ▼           ▼            ▼             ▼              ▼
+ PostgreSQL     Redis    Cloudflare R2   ClamAV      OpenAI        Turnstile,
+ (Prisma 7)   (limits)   (images)       (optional)  Responses API  Resend/SMTP,
+                                                                   Google/GitHub,
+                                                                   YouTube/Vimeo oEmbed
 ```
 
-### Data flow — Article read (critical path)
+| Concern | Where |
+| --- | --- |
+| Request pipeline | `proxy.ts`, `lib/request.ts`, `lib/rate-limit.ts`, `lib/csp.ts`, `lib/client-ip.ts` |
+| Static security headers | `next.config.ts` (HSTS, frame denial, nosniff, referrer, permissions, COOP) |
+| Reader auth | `auth.config.ts`, `lib/auth.ts`, `lib/auth-adapter.ts`, `lib/user-session.ts` |
+| Second factors | `lib/mfa/*` |
+| Admin auth | `lib/admin-session.ts`, `lib/admin-auth.ts`, `lib/password.ts` |
+| Paywall and views | `lib/paywall.ts`, `lib/engagement.ts`, `lib/visitor.ts`, `lib/premium.ts` |
+| Story documents | `lib/story-document.ts`, `lib/article-schema.ts`, `lib/story-theme.ts` |
+| Media | `app/api/media`, `lib/image-pipeline.ts`, `lib/image-type.ts`, `lib/clamav.ts`, `lib/r2.ts`, `lib/storage-url.ts` |
+| Erasure and export | `lib/gdpr.ts`, `app/api/me/*`, `scripts/cleanup.ts` |
+
+---
+
+## 2. Request pipeline
+
+`proxy.ts` matches every path except `_next/static`, `_next/image` and the
+favicon.
+
+### API routes (`/api/*`)
+
+1. `GET`/`HEAD /api/health` skips everything (cheap liveness check).
+2. **Writes** (any method other than GET, HEAD, OPTIONS):
+   - `Origin` must exist and equal the origin of `NEXTAUTH_URL`, and
+     `Sec-Fetch-Site` must not be `cross-site`. Otherwise `403`. Forwarded host
+     headers are never trusted.
+   - `POST /api/auth/signin/resend` is blocked, so email links can only be
+     requested through `/api/auth/magic-link` (which enforces Turnstile).
+3. **Rate limit** per client IP, one-minute window:
+
+   | Tier | Paths | Limit |
+   | --- | --- | --- |
+   | credential | `/api/admin/login`, `/api/auth/magic-link`, `/api/auth/oauth-turnstile`, and prefixes `/api/auth/mfa/`, `/api/auth/passkey/`, `/api/admin/login/`, `/api/me/security/`, `/api/admin/security/` | 10 |
+   | write | other writes | 60 |
+   | read | other reads | 300 |
+
+   Over the limit returns `429` with `Retry-After`.
+4. **Body limit** for writes: the body is streamed and counted. Over 1 MiB returns
+   `413`, a body that takes longer than 10 seconds returns `408`.
+5. The response gets `Cache-Control: private, no-store`.
+
+Route handlers then apply their own per-user or per-reader limits (uploads, AI,
+comments, votes, export, email links, MFA attempts).
+
+### Pages
+
+1. Per-IP page limit: 300 requests per minute.
+2. `/admin/*` (except `/admin/login`) requires a valid admin JWT whose user is
+   still an admin with a matching session version; otherwise redirect to
+   `/admin/login`.
+3. A fresh nonce builds the Content-Security-Policy (`lib/csp.ts`):
+   `script-src 'self' 'nonce-…' 'strict-dynamic'` plus Turnstile, frames limited
+   to Turnstile, YouTube and Vimeo, `frame-ancestors 'none'`, `object-src 'none'`.
+   Development adds `'unsafe-eval'`; production adds `upgrade-insecure-requests`.
+4. On article-shaped paths (`/{a}/{b}`, excluding `/admin` and `/me`), the proxy
+   reads or issues the `reader_session` cookie (section 6) and passes the reader
+   id to the page in an internal `x-reader-id` header. Any client-supplied
+   `x-reader-id` is removed first.
+
+### Rate limiter (`lib/rate-limit.ts`)
+
+- With `REDIS_URL`: one atomic Lua script does `INCR` + `PEXPIRE` and returns the
+  count and TTL. Keys are `rate:` + HMAC-SHA256(`NEXTAUTH_SECRET`, key), so
+  Redis never stores raw emails, user ids or IPs. Commands time out after 1 s.
+- Production without Redis, or with Redis unreachable: **deny** (fail closed).
+- Development without Redis: an in-memory map capped at 50,000 keys; at capacity
+  it rejects new keys rather than clearing existing penalties.
+- Client IP (`lib/client-ip.ts`) is the last `X-Forwarded-For` entry only when
+  `TRUST_PROXY_IP=1`. Otherwise every client shares the IP bucket `unknown`.
+  Per-user and per-email limits still apply.
+
+---
+
+## 3. Authentication
+
+There are two independent systems: Auth.js for readers and writers, and a
+separate JWT for the admin console. Admin accounts are `User` rows with
+`role = ADMIN` and a `passwordHash`.
+
+### 3.1 Reader sign-in methods
+
+| Method | Flow |
+| --- | --- |
+| Google / GitHub | The browser solves Turnstile and posts it to `/api/auth/oauth-turnstile`, which sets a 5-minute signed `oauth_turnstile` cookie. Auth.js's `signIn` callback rejects OAuth sign-ins without a valid cookie. |
+| Email link | `/api/auth/magic-link` takes `intent: "login"` (existing accounts only, `404 no_account` otherwise) or `intent: "signup"` (new accounts only, `409 account_exists` otherwise, with a display name). After Turnstile and a 3-per-15-minute per-email limit, Auth.js sends the link through Resend (production) or Nodemailer/Mailpit (development). |
+| Passkey | `/api/auth/passkey/options` + `/verify` with a discoverable credential. On success the server creates an Auth.js database session directly, already marked MFA-verified. |
+
+Email links point at `/verify`, not at the Auth.js callback
+(`confirmBeforeSignIn` in `auth.config.ts`). The page shows a **Continue**
+button that submits the token to `/api/auth/callback/{provider}`. Link scanners
+and previews that open the URL do not use up the one-time token.
+
+New users get a random public username `writer-{uuid}` (`events.createUser`), so
+the email address never leaks into URLs.
+
+`lib/auth-adapter.ts` wraps the Prisma adapter so deleting an already-deleted
+session succeeds. Without it, a stale cookie made sign-in and sign-out fail.
+
+### 3.2 Sessions and account setup
+
+Sessions are Auth.js **database sessions** (30 days). The `session` callback
+returns an explicit allow-list: `id`, `name`, `email`, `image`, plus two flags:
+
+- `mfaPending`: the account has a second factor but this session has not
+  verified it (`Session.mfaVerifiedAt` is null).
+- `setupRequired`: the account has no second factor, or no display name.
+
+`lib/auth.ts` exposes three accessors:
+
+| Function | Returns a session when | Used by |
+| --- | --- | --- |
+| `auth()` | signed in, MFA verified, setup complete | every normal page and API |
+| `authForAccountSetup()` | signed in and MFA verified (setup may be incomplete) | `/mfa` setup step, `PATCH /api/me`, `/api/me/security/*` |
+| `authIncludingPendingMfa()` | any session | `/mfa` challenge, `/api/auth/mfa/*` |
+
+So a session that owes a second factor, or an account without a name and second
+factor, is treated as signed out everywhere else.
+
+Every email and OAuth sign-in lands on `/mfa`:
 
 ```text
-Browser → Vercel CDN (cached HTML, ISR 60s)
-       → On cache miss: Next.js SSR → Prisma → PostgreSQL
-       → Middleware checks: is article member-only?
-            └── No  → render full
-            └── Yes → check session + subscription
-                          └── Active → render full
-                          └── None  → render excerpt only (first ~300 words)
-                                       + paywall CTA component
-                                       (full body is NEVER sent to unauthorized clients)
+/mfa
+ ├── mfaPending       → MfaChallenge: passkey, authenticator code or recovery code
+ │                      → POST /api/auth/mfa/verify → Session.mfaVerifiedAt = now
+ ├── setupRequired    → AccountSetup: 1) display name (if missing)
+ │                                     2) add a passkey or authenticator app
+ │                                     → recovery codes shown once
+ └── otherwise        → redirect to ?next (validated by lib/safe-redirect.ts)
 ```
 
-> **Paywall enforcement:** Member-only content is gated server-side. The full article body is not rendered into the HTML for unauthorized requests — only a plain-text excerpt is returned. CSS/blur tricks are not used for revenue-critical content.
+Adding the first factor marks the current session verified, so the person is
+not asked again straight away. Other sessions are asked on their next request.
+
+### 3.3 Second factors (`lib/mfa/`)
+
+| Factor | Implementation |
+| --- | --- |
+| Passkeys | `@simplewebauthn/server`. RP ID is the hostname of `NEXTAUTH_URL`, RP name "Nystara". Resident key and user verification required. Challenges are stored in `AuthChallenge`, expire in 5 minutes and are deleted when used. Signature counters are checked. |
+| Authenticator app (TOTP) | `otpauth`, SHA-1, 6 digits, 30-second period, ±1 step. Secrets are encrypted with AES-256-GCM using `MFA_ENCRYPTION_KEY` and bound to the user id. `totpLastStep` is updated with a conditional write so a code cannot be used twice, even concurrently. |
+| Recovery codes | Ten codes like `abcde-fghjk`, stored as SHA-256 hashes, single use, regenerated as a set. Deleted when the last factor is removed. |
+
+`handleSecurityAction` is shared by `/api/me/security/*` and
+`/api/admin/security/*`. Once an account has any factor, every change (add,
+remove, regenerate codes) needs a fresh proof from an existing factor, so a
+stolen session alone cannot change factors. `verifyFactor` allows 10 attempts
+per account per 15 minutes, on top of the per-IP credential tier.
+
+Rotating `MFA_ENCRYPTION_KEY` makes stored TOTP secrets unreadable. Those users
+fall back to passkeys or recovery codes.
+
+### 3.4 Admin authentication
+
+- `POST /api/admin/login`: Turnstile, then bcrypt comparison (a dummy hash keeps
+  timing equal for unknown emails). Only `role = ADMIN` with a password hash
+  succeeds.
+- If the admin has MFA on, the response is `{ mfaRequired: true, methods }` and a
+  5-minute `admin_mfa_pending` JWT cookie (path `/api/admin/login`) is set. The
+  admin completes `/api/admin/login/mfa`.
+- Passkey-only admin sign-in: `/api/admin/login/passkey-options` + `/passkey`.
+- The session is an HS256 JWT in the `admin_session` cookie (8 hours,
+  `HttpOnly`, `SameSite=Strict`, `Secure` in production), audience
+  `nystara:admin`, carrying `sub`, `email`, `role` and `version`.
+- `getVerifiedAdminSession()` checks the JWT and then the database: the user must
+  still be an admin and `sessionVersion` must match. Password changes, role
+  changes and re-seeding increment `sessionVersion`, revoking older tokens.
+- MFA is **optional** for admins; the admin console has its own security page.
+- Admin passwords are 12+ characters and at most 72 UTF-8 bytes (bcrypt's limit).
 
 ---
 
-## 4. Tech Stack (Chosen)
+## 4. Data model
 
-| Layer       | Choice                                         | Why                                  |
-| ----------- | ---------------------------------------------- | ------------------------------------ |
-| Framework   | **Next.js 16** (App Router)                    | SSR for SEO + API routes in one repo |
-| Language    | **TypeScript** strict mode                     | Type safety, no `any`                |
-| Styling     | **Tailwind CSS 4**                             | Utility-first, no CSS files          |
-| ORM         | **Prisma 7**                                   | Type-safe queries, great DX          |
-| Database    | **PostgreSQL 16** on Railway                   | Reliable, free tier for dev          |
-| Auth        | **NextAuth.js v5** (Auth.js)                   | Google, GitHub, email magic-link     |
-| Editor      | **Tiptap 2**                                   | Headless rich text (ProseMirror)     |
-| Payments    | **Stripe**                                     | Subscriptions + webhooks             |
-| Email       | **Resend** + **React Email**                   | Transactional + digest templates     |
-| Image store | **Vercel Blob**                                | One-line SDK, CDN included           |
-| OG Images   | **@vercel/og**                                 | Dynamic article share cards          |
-| Validation  | **Zod**                                        | Schema validation on all API inputs  |
-| State       | **Zustand** (editor UI only)                   | No global state needed elsewhere     |
-| Hosting     | **Vercel** (frontend + API) + **Railway** (DB) | Zero DevOps                          |
-
-**Not included (keep simple):** Redis, message queues, separate microservices, GraphQL.
-
----
-
-## 5. Low-Level Design (LLD)
-
-### 5.1 Folder Structure
+Schema: `prisma/schema.prisma`. Migrations `0_init` to `7_article_engagement`.
 
 ```text
-nystara/
-├── app/                        # Next.js App Router
-│   ├── (public)/               # Route group — no auth
-│   │   ├── page.tsx            # Home feed
-│   │   ├── [username]/         # Author profile
-│   │   ├── [username]/[slug]/  # Article page
-│   │   └── tag/[tag]/          # Topic feed
-│   ├── (auth)/                 # Route group — requires session
-│   │   ├── new/                # Editor — create article
-│   │   ├── [username]/[slug]/edit/ # Editor — edit article
-│   │   ├── dashboard/          # Writer stats
-│   │   └── settings/           # Profile + subscription
-│   ├── api/
-│   │   ├── auth/[...nextauth]/ # NextAuth handler
-│   │   ├── articles/           # CRUD
-│   │   ├── claps/              # Clap endpoint
-│   │   ├── comments/           # Comments
-│   │   ├── subscriptions/      # Stripe subscription management
-│   │   ├── webhooks/stripe/    # Stripe webhook handler
-│   │   └── og/                 # Dynamic OG image generation
-│   └── layout.tsx
-├── components/
-│   ├── editor/                 # Tiptap editor components
-│   ├── article/                # ArticleCard, ArticleBody, PaywallCTA
-│   ├── auth/                   # LoginModal, SignupModal
-│   └── ui/                     # Button, Input, Avatar, etc.
-├── lib/
-│   ├── prisma.ts               # Prisma client singleton
-│   ├── auth.ts                 # NextAuth config
-│   ├── stripe.ts               # Stripe client
-│   ├── resend.ts               # Resend client
-│   └── paywall.ts              # Metered access logic
-├── emails/                     # React Email templates
-│   ├── MagicLink.tsx
-│   ├── WeeklyDigest.tsx
-│   └── WelcomeEmail.tsx
-├── prisma/
-│   ├── schema.prisma
-│   └── seed.ts
-└── middleware.ts               # Edge middleware for auth + paywall
+User ─┬─< Article ─┬─< ArticleTag >── Tag
+      │            ├─< Comment (self-relation parent/replies, guest or member)
+      │            ├─< Clap
+      │            ├─< Bookmark
+      │            ├─< ArticleView      (visitorId = user id or anon reader id)
+      │            └─< ArticleFeedback  (voterId  = user id or anon reader id)
+      ├─< Comment, Clap, Bookmark, ArticleFeedback
+      ├─< Follow (follower) / Follow (following)
+      ├─── Subscription (0..1)
+      ├─< Account, Session            (Auth.js)
+      └─< Passkey, RecoveryCode       (MFA)
+
+VerificationToken (Auth.js email links)   AuthChallenge (WebAuthn challenges)
 ```
+
+| Model | Notes |
+| --- | --- |
+| `User` | `username` unique (nullable until created); `role` USER/ADMIN; `passwordHash` (admins); `sessionVersion`; `mfaEnabled`, `totpSecret` (encrypted), `totpEnabledAt`, `totpLastStep`; `stripeCustomerId`. |
+| `Article` | `content` (Tiptap JSON), `contentText` (plain text for excerpts, read time and search), `readTime` (words / 200, minimum 1), `published`, `publishedAt`, `memberOnly`, `theme` (default `classic`). Unique `(authorId, slug)`. Indexed by `(published, publishedAt)` and `(authorId, published, publishedAt)`. |
+| `Comment` | `authorId` nullable: guests have `guestName` instead. `deletedAt` soft delete. `parentId` uses `ON DELETE SET NULL`, so erasing one author keeps other people's replies. |
+| `ArticleFeedback` | Primary key `(articleId, voterId)`. `reaction` LIKE/DISLIKE (nullable), `rating` 1–5 (nullable). `userId` set for members so erasure cascades. |
+| `ArticleView` | One row per counted read. Indexed by `(visitorId, createdAt)`, `articleId`, `createdAt`. |
+| `Subscription` | One per user: Stripe ids, `status` (ACTIVE, PAST_DUE, CANCELED, TRIALING), `currentPeriodEnd`. |
+| `Session` | Auth.js row plus `mfaVerifiedAt`. |
+| `Passkey` | Credential id, public key, counter, transports, device type, backed-up flag, name, last used. |
+| `AuthChallenge` | Single-use WebAuthn challenge with purpose, optional user and expiry. |
+
+All user-owned rows cascade on user delete. Migration `1_search_vector` adds a
+generated `tsvector` column over title and `contentText` with a GIN index; no
+query uses it yet.
+
+Slugs are `slugify(title)` + `-` + a random UUID (`lib/slug.ts`), so concurrent
+creation never collides and no lookup is needed.
 
 ---
 
-### 5.2 Database Schema (Prisma)
+## 5. Reading and the paywall
 
-```prisma
-// prisma/schema.prisma
+### Article page (`app/[username]/[slug]/page.tsx`)
 
-model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  name          String?
-  username      String    @unique
-  bio           String?
-  avatarUrl     String?
-  createdAt     DateTime  @default(now())
+1. Load the published article by author username and slug (cached per request so
+   `generateMetadata` and the page share one query).
+2. Identify the voter: the signed-in user id, or the anonymous reader id from the
+   proxy. No identity means `404` (the proxy always issues one).
+3. Decide access:
 
-  // Auth
-  accounts      Account[]
-  sessions      Session[]
+   ```text
+   article.memberOnly = false
+       → full story; recordView() (one view per reader per article per UTC day)
+   article.memberOnly = true
+       ├── subscriber (ACTIVE or TRIALING, currentPeriodEnd in the future)
+       │       → full story; recordView()
+       └── anyone else (anonymous or signed-in non-member)
+               → checkPaywallAccess(voterId, articleId)
+                   ├── already read this story in the window → full story
+                   ├── < 5 members-only reads in 30 days     → full story + record view
+                   └── otherwise → 300-word excerpt + "Become a member" box
+   ```
 
-  // Content
-  articles      Article[]
-  comments      Comment[]
-  claps         Clap[]
-  bookmarks     Bookmark[]
+4. Load feedback totals, up to 200 live comments, trending and most-viewed-today
+   lists, then render.
 
-  // Social
-  following     Follow[]  @relation("follower")
-  followers     Follow[]  @relation("following")
+The paywall check (`lib/paywall.ts`) runs in a transaction that first takes
+`pg_advisory_xact_lock(hashtextextended(visitorId, 0))`. This serialises checks
+for the same reader across all replicas, so parallel requests cannot exceed the
+quota. Only views of members-only stories count toward the 5.
 
-  // Monetization
-  subscription  Subscription?
-  stripeCustomerId String? @unique
-  // earnings added in Phase 3 when Stripe Connect + fraud detection are ready
-}
+When the reader is over quota, the page passes `content = null` and a plain-text
+excerpt to `StoryContent`. The full document is never serialised into the HTML.
+This is a soft paywall: a new browser or cleared cookies get a new anonymous
+reader id. It nudges readers toward membership; it is not access control.
 
-model Article {
-  id            String    @id @default(cuid())
-  slug          String
-  title         String
-  subtitle      String?
-  coverImage    String?
-  content       Json      // Tiptap JSON document
-  contentText   String    // Plain text for search / read-time
-  readTime      Int       // minutes, computed on save
-  published     Boolean   @default(false)
-  memberOnly    Boolean   @default(false)
-  publishedAt   DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+### Home and profile
 
-  authorId      String
-  author        User      @relation(fields: [authorId], references: [id])
+- `/` (`app/(public)/page.tsx`): latest 20 published stories, 20 most-clapped
+  stories ("featured"), top 10 tags, with `FeedTabs` switching between lists.
+- `/{username}`: profile header, follower/following counts, latest 20 stories.
+- `GET /api/articles`: the same published feed as JSON, 20 per page with a cursor,
+  optional `tag` filter.
 
-  tags          ArticleTag[]
-  comments      Comment[]
-  claps         Clap[]
-  bookmarks     Bookmark[]
-  views         ArticleView[]
+### Metadata
 
-  @@unique([authorId, slug])  // /alice/react-hooks and /bob/react-hooks can coexist
-}
-
-model Tag {
-  id       String       @id @default(cuid())
-  name     String       @unique
-  slug     String       @unique
-  articles ArticleTag[]
-}
-
-model ArticleTag {
-  articleId String
-  tagId     String
-  article   Article @relation(fields: [articleId], references: [id])
-  tag       Tag     @relation(fields: [tagId], references: [id])
-  @@id([articleId, tagId])
-}
-
-model Comment {
-  id        String   @id @default(cuid())
-  body      String
-  createdAt DateTime @default(now())
-  deletedAt DateTime?  // soft delete — never hard delete comments
-  authorId  String
-  articleId String
-  author    User    @relation(fields: [authorId], references: [id])
-  article   Article @relation(fields: [articleId], references: [id])
-  parentId  String?
-  parent    Comment? @relation("replies", fields: [parentId], references: [id])
-  replies   Comment[] @relation("replies")
-}
-
-model Clap {
-  userId    String
-  articleId String
-  count     Int      @default(1) // up to 50 per user
-  user      User    @relation(fields: [userId], references: [id])
-  article   Article @relation(fields: [articleId], references: [id])
-  @@id([userId, articleId])
-}
-
-model Bookmark {
-  userId    String
-  articleId String
-  createdAt DateTime @default(now())
-  user      User    @relation(fields: [userId], references: [id])
-  article   Article @relation(fields: [articleId], references: [id])
-  @@id([userId, articleId])
-}
-
-model Follow {
-  followerId  String
-  followingId String
-  createdAt   DateTime @default(now())
-  follower    User @relation("follower", fields: [followerId], references: [id])
-  following   User @relation("following", fields: [followingId], references: [id])
-  @@id([followerId, followingId])
-}
-
-model ArticleView {
-  id        String   @id @default(cuid())
-  articleId String
-  visitorId String   // anonymous cookie ID or userId
-  createdAt DateTime @default(now())
-  article   Article @relation(fields: [articleId], references: [id])
-  @@index([visitorId, createdAt])
-}
-
-model Subscription {
-  id                   String    @id @default(cuid())
-  userId               String    @unique
-  stripeSubscriptionId String    @unique
-  stripePriceId        String
-  status               SubStatus
-  currentPeriodEnd     DateTime
-  cancelAtPeriodEnd    Boolean   @default(false)
-  user                 User      @relation(fields: [userId], references: [id])
-}
-
-enum SubStatus {
-  ACTIVE
-  PAST_DUE
-  CANCELED
-  TRIALING
-}
-
-// NextAuth required tables
-model Account { ... }
-model Session { ... }
-model VerificationToken { ... }
-```
-
-> **Search:** `contentText` carries a GIN-indexed `tsvector` column added via a raw migration alongside the Prisma schema. Add this before first deploy — retrofitting it on a populated table is a larger migration.
-
-```sql
--- migration: add full-text search index
-ALTER TABLE "Article" ADD COLUMN search_vector tsvector
-  GENERATED ALWAYS AS (to_tsvector('english', coalesce(title, '') || ' ' || coalesce("contentText", ''))) STORED;
-CREATE INDEX article_search_idx ON "Article" USING GIN(search_vector);
-```
+`generateMetadata` sets title, description (subtitle or excerpt), canonical URL,
+Open Graph `article` data (published time, author, cover image) and a Twitter
+card. Share URLs are built from `NEXTAUTH_URL`.
 
 ---
 
-### 5.3 Implemented API Routes
+## 6. Reader engagement
 
-| Method | Route                        | Auth      | Description                 |
-| ------ | ---------------------------- | --------- | --------------------------- |
-| GET    | `/api/articles?tag=&cursor=` | —         | Paginated feed              |
-| POST   | `/api/articles`              | required  | Create draft                |
-| PATCH  | `/api/articles/[id]`         | author    | Update article              |
-| DELETE | `/api/articles/[id]`         | author    | Delete                      |
-| POST   | `/api/articles/[id]/publish` | author    | Publish / unpublish         |
-| POST   | `/api/auth/magic-link`       | Turnstile | Request email sign-in       |
-| POST   | `/api/auth/oauth-turnstile`  | Turnstile | Pre-authorize OAuth sign-in |
-| GET    | `/api/admin/me`              | admin     | Current admin profile       |
-| GET    | `/api/admin/users`           | admin     | List users                  |
-| GET    | `/api/admin/users/[id]`      | admin     | User detail                 |
-| PATCH  | `/api/admin/users/[id]`      | admin     | Update user                 |
-| DELETE | `/api/admin/users/[id]`      | admin     | Delete user                 |
-| GET    | `/api/admin/articles`        | admin     | List articles               |
-| POST   | `/api/admin/articles`        | admin     | Create article              |
-| GET    | `/api/admin/articles/[id]`   | admin     | Article detail              |
-| PATCH  | `/api/admin/articles/[id]`   | admin     | Update article              |
-| DELETE | `/api/admin/articles/[id]`   | admin     | Delete article              |
-| GET    | `/api/health`                | —         | Health check                |
+### Anonymous reader identity (`lib/visitor.ts`)
 
-Planned routes include claps, comments, Stripe checkout and portal endpoints,
-Stripe webhooks, and dynamic OG images.
+The `reader_session` cookie is an HS256 JWT signed with `NEXTAUTH_SECRET`,
+audience `nystara:reader`, subject `anon-{uuid}`, valid for 30 days. It is
+random: it is not derived from IP, browser or email. Invalid or expired cookies
+get a fresh identity. The proxy sets it only on article pages.
+
+`currentVoter()` (API routes) and `pageVoter()` (article page) resolve the voter
+as `{ voterId, userId }`: members use their user id, guests use the reader id.
+
+### Comments
+
+- `POST /api/articles/{id}/comments` for published stories only.
+- Members post under their account. Guests must give a name (2–50 letters,
+  spaces, `.`, `'` or `-`) and pass Turnstile.
+- Replies are one level deep: the parent must be a live top-level comment on the
+  same story.
+- 10 comments per voter per hour. Body 1–2,000 characters, rendered as text.
+- `DELETE /api/comments/{id}`: the commenter or the story's author, soft delete.
+
+### Reactions and ratings
+
+`PUT /api/articles/{id}/feedback` upserts one row per voter: like or dislike, and
+a 1–5 rating, each independently clearable with `null`. 60 votes per voter per
+10 minutes. The response is the new totals (likes, dislikes, rounded average,
+count) and the voter's own choices.
+
+### Trending and most viewed (`lib/engagement.ts`)
+
+- **What's trending**: the last 48 hours. Score = views × 1 + likes × 3 +
+  comments × 5, taken from the top 50 articles in each signal.
+- **Most viewed today**: views since midnight UTC.
+
+Both list published stories with a username, plus the first tag as the topic.
+
+### Sharing
+
+`ShareBar` links to Facebook, LinkedIn and X share URLs. Instagram and Discord
+have no web share URL: on touch devices the button opens the system share sheet,
+otherwise it copies the link. A separate copy-link button is always available.
 
 ---
 
-### 5.4 Paywall Logic
+## 7. Writing: editor, documents and media
+
+### Editor (`app/new-story/StoryEditor.tsx`)
+
+`/new-story` creates a story; `/editor/{id}` loads one the signed-in user owns.
+
+- Tiptap with StarterKit, TextAlign, TextStyle (font family, size, line height),
+  Image, Placeholder and a custom `video` node
+  (`components/editor/video-extension.tsx`).
+- `components/editor/Ribbon.tsx`, a Word-style ribbon:
+  - **Home**: undo/redo, font family and size, bold/italic/underline/strike,
+    clear formatting, alignment, line spacing, lists, and a styles gallery
+    (Normal, Heading 1–3, Quote, Code).
+  - **Insert**: image (with alt text), cover upload, video link, link, quote,
+    code block, divider.
+  - **Design**: the six document themes.
+- The page area renders inside `.story-theme[data-story-theme]`, so the editor
+  looks like the published story.
+- Title (250 characters), subtitle (500), members-only toggle, word count and read
+  time.
+- **Save draft** creates or updates the article. **Publish** saves, then calls
+  `/publish`, then opens the story. A failed publish keeps the saved draft.
+- A warning appears when leaving with unsaved changes.
+
+### Local drafts (`lib/local-draft.ts`)
+
+Unsaved work is mirrored to `localStorage` 400 ms after each change, under
+`nystara:draft:{owner}:{storyId|new}`. On load:
+
+- An existing story uses the browser copy only if it is newer than the server's
+  `updatedAt`.
+- `/new-story` restores the single in-progress story. After the first save, the
+  copy is linked to that draft until it is published.
+- "Start a new story" clears only this browser's copy; the server draft stays in
+  Stories.
+
+The local copy does not include the story theme, so a restored draft uses the
+saved or default theme.
+
+### Document format (`lib/story-document.ts`, `lib/article-schema.ts`)
+
+Content is validated against an allow-list before saving:
+
+- Nodes: doc, paragraph, heading (levels 1–3), text, bullet/ordered list, list
+  item, blockquote, code block, hard break, horizontal rule, image, video.
+- Marks: bold, italic, underline, strike, code, link (`https`, `http`, `mailto`,
+  no credentials), textStyle (fixed font families, sizes, and line heights 1.5,
+  1.8 or 2).
+- At most 5,000 nodes, depth 20, 100,000 characters of text.
+- Image `src` must be under this deployment's R2 public URL and `stories/` path.
+  Video thumbnails must be on `i.ytimg.com` or `i.vimeocdn.com`.
+- `contentText` is recomputed on the server from the document when it parses,
+  so the excerpt and read time cannot be spoofed.
+
+Published stories render through `components/article/StoryContent.tsx`, a fixed
+React renderer: no `dangerouslySetInnerHTML`. Older plain-text stories are
+converted with `legacyDocument()`.
+
+### Images
 
 ```text
-lib/paywall.ts
-
-FREE_LIMIT = 5 articles / 30-day rolling window per visitorId
-
-isAllowed(visitorId, articleId):
-  1. Article not memberOnly → allow (return full content)
-  2. User has ACTIVE subscription → allow (return full content)
-  3. Count ArticleView where visitorId = X, createdAt >= 30 days ago
-     └── count < FREE_LIMIT → allow + record view (return full content)
-     └── count >= FREE_LIMIT → deny (return excerpt only, ~300 words)
-
-Server-side excerpt generation:
-  - Slice contentText to first ~300 words
-  - Return PaywallCTA component (not a CSS overlay)
-  - Full Tiptap JSON is never serialized into the page for denied requests
+Browser (components/editor/prepare-image.ts)
+  · JPEG/PNG/WebP up to 25 MB accepted
+  · > 600 KB: downscale to ≤ 2400 px and re-encode WebP until ≤ 600 KB
+        │ POST /api/media { type, data: base64, purpose: inline | cover }
+        ▼
+Server (app/api/media/route.ts)
+  1. signed-in user; R2 configured (else 503)
+  2. 50 uploads per user per day
+  3. base64 ≤ 600 KB; magic bytes must match the declared type
+  4. ClamAV INSTREAM scan if CLAMAV_HOST is set
+       infected → 422; scanner unreachable → 503 (fails closed)
+  5. sharp: limit 40 MP, auto-orient, fit inside 1600 px (inline) or
+     2400 px (cover), WebP quality 82. Metadata (EXIF, GPS) is dropped.
+  6. PutObject to R2: stories/{userId}/{uuid}.webp,
+     Cache-Control: public, max-age=31536000, immutable
+        │
+        ▼
+  201 { url: R2_PUBLIC_URL/stories/... }
 ```
 
-> **Soft paywall caveat:** Cookie/visitorId counting is easily bypassed (incognito, cleared cookies). This is intentional for MVP — it's a conversion nudge, not DRM. Do not market it as hard access control.
+Uploaded images are public, including images in unpublished drafts. Removing an
+image from a story does not delete the object; account erasure deletes the whole
+`stories/{userId}/` prefix.
+
+Cover images may also come from Google or GitHub avatar hosts and Vercel Blob
+(older URLs). Any cover must be HTTPS without credentials or a port.
+
+### Video
+
+`POST /api/videos` accepts public YouTube (`watch`, `youtu.be`, `shorts`,
+`embed`) and Vimeo URLs, normalises them, and calls the provider's fixed oEmbed
+endpoint (8-second timeout, redirects rejected). It returns the title and a
+validated thumbnail. Readers see the thumbnail and load the player only when
+they click it.
 
 ---
 
-### 5.5 Auth Setup (NextAuth v5)
+## 8. AI editor
 
-```typescript
-// lib/auth.ts
-providers: [
-  Google({ clientId, clientSecret }),
-  GitHub({ clientId, clientSecret }),
-  Resend({ apiKey, from: "noreply@nystara.com" }), // magic link
-];
-adapter: PrismaAdapter(prisma);
-```
+`/ai-editor` (`app/ai-editor/AiStudio.tsx`) is a separate page from the story
+editor.
 
----
+- The writer pastes or types up to 12,000 characters and picks an action:
+  polish, shorten, expand, outline, titles or feedback (`lib/ai-editor.ts`).
+- The text is kept in this browser's local storage (`nystara:ai:{owner}`).
+- Results can be copied, or appended to the in-progress `/new-story` local draft
+  (which then opens).
+- Non-members see the page with the controls locked.
 
-### 5.6 Email System (Resend + React Email)
+`POST /api/ai/editor`:
 
-| Email                | Trigger                     | Template            |
-| -------------------- | --------------------------- | ------------------- |
-| Magic link           | Auth                        | `MagicLink.tsx`     |
-| Welcome              | First sign-up               | `WelcomeEmail.tsx`  |
-| Weekly digest        | Cron every Monday 08:00 UTC | `WeeklyDigest.tsx`  |
-| New follower         | Follow event                | `NewFollower.tsx`   |
-| New comment          | Comment on your article     | `NewComment.tsx`    |
-| Subscription receipt | Stripe `invoice.paid`       | Stripe-native email |
+1. Signed-in user with premium access: a `Subscription` that is ACTIVE or
+   TRIALING with `currentPeriodEnd` in the future (`lib/premium.ts`). Checked on
+   every request.
+2. `OPENAI_API_KEY` and `OPENAI_MODEL` set (else `503`).
+3. 30 requests per user per day. Attempts count even if the provider fails.
+4. Calls `https://api.openai.com/v1/responses` with `store: false`,
+   `max_output_tokens: 2000` and a 45-second timeout. The instructions tell the
+   model to treat the passage as text to edit, never as instructions, and return
+   plain text.
+5. Only `output_text` parts of `message` items are used.
 
-**Weekly digest cron** (Vercel cron job, `vercel.json`):
-
-```json
-{
-  "crons": [{ "path": "/api/cron/digest", "schedule": "0 8 * * 1" }]
-}
-```
-
-The digest endpoint:
-
-1. Query top 10 articles published in last 7 days by clap count
-2. For each subscriber, filter by their followed tags
-3. Batch-send via `resend.batch.send()`
-
-> **Scale note:** A single cron call will hit Vercel's function timeout as subscriber count grows. At that point, switch to cursor-paginated batches with a checkpoint in the DB. For MVP this is acceptable.
+Suggestions are not fact-checked. Because there is no checkout yet, premium
+access can only be granted by creating a `Subscription` row directly.
 
 ---
 
-### 5.7 Rich Text Editor (Tiptap)
+## 9. Admin console
 
-Extensions enabled:
+Pages are under `app/admin/(console)/`. The proxy guards them all. Server pages
+that query the database (dashboard, user list, article list and detail,
+security) also verify the admin session themselves first. The client pages (user
+detail, article new/edit, profile, settings) load and save through
+`/api/admin/*`, which verifies on every request.
 
-- `StarterKit` (headings, bold, italic, lists, code, blockquote, hr)
-- `Image` (upload → Vercel Blob → insert URL)
-- `CodeBlockLowlight` (syntax highlighting via lowlight)
-- `Link`
-- `Placeholder`
-- `CharacterCount`
-- `Youtube` (embed by pasting URL)
+| Page | Purpose |
+| --- | --- |
+| `/admin/dashboard` | User, article and published counts; recent articles and users |
+| `/admin/users`, `/admin/users/{id}` | Search by email/name/username; edit name, bio and role; erase |
+| `/admin/articles`, `/new`, `/{id}`, `/{id}/edit` | Search by title, filter published/draft; create, edit, publish, delete |
+| `/admin/profile` | Name, bio, password change (signs the admin out) |
+| `/admin/security` | Passkeys, authenticator app and recovery codes |
+| `/admin/settings` | Appearance theme; sign-in security summary |
 
-On save: store Tiptap JSON in `Article.content`, extract plaintext for `Article.contentText` and compute `readTime = Math.ceil(wordCount / 200)`.
-
-> **Autosave:** Implement debounced autosave (every 30s) from the start. Editor data loss is one of the fastest ways to lose writers.
-
----
-
-### 5.8 Social Share (Share Intents — No API Posting)
-
-Share buttons open native share URLs. No OAuth, no API keys, no policy surface.
-
-```typescript
-const shareUrls = {
-  x: `https://x.com/intent/tweet?url=${url}&text=${title}`,
-  linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${url}`,
-  reddit: `https://reddit.com/submit?url=${url}&title=${title}`,
-  hn: `https://news.ycombinator.com/submitlink?u=${url}&t=${title}`,
-};
-// Also: navigator.share() for mobile Web Share API
-```
-
-> Direct social API posting (posting on behalf of users) is not planned. X API pricing is volatile and the OAuth review/token-refresh maintenance cost is high for the return at MVP scale.
+Admin-created articles store plain text as `{ text }` content. An admin cannot
+remove their own admin role or delete their own account. Deleting a user runs the
+same erasure as self-service deletion.
 
 ---
 
-### 5.9 Planned Social Share Cards (OG Images)
+## 10. Frontend structure
 
-```typescript
-// app/api/og/route.tsx  (@vercel/og)
-export function GET(request: Request) {
-  const { title, author, coverImage } = parse(request.url)
-  return new ImageResponse(
-    <OgCard title={title} author={author} coverImage={coverImage} />,
-    { width: 1200, height: 630 }
-  )
-}
-```
+- **Root layout** (`app/layout.tsx`): fonts (Geist, Geist Mono, Newsreader for
+  display; Playfair Display and Source Serif 4 for story themes, not preloaded),
+  metadata, viewport with `viewport-fit=cover`, and `data-theme` from the `theme`
+  cookie.
+- **Site themes**: light, dark, sand, or system (no attribute; follows the OS).
+  Stored in the `theme` cookie so the server renders the right colours on the
+  first paint (`lib/theme.ts`, `components/theme/*`).
+- **Story themes**: `[data-story-theme]` blocks in `app/globals.css` set fonts,
+  accent colour and spacing, with dark-mode variants.
+- **App shell** (`components/layout/AppShell.tsx`): wraps signed-in pages and the
+  article and profile pages. Desktop shows `AppSidebar` with Read / Write /
+  Account sections (`components/layout/nav.ts`). Touch devices (the `touch`
+  variant) show `MobileNav`: Home, Library, Write, Stories and a "More" sheet
+  with every destination, padded for the iPhone home indicator.
+- **Public layout** (`app/(public)/layout.tsx`): marketing header and footer for
+  the home and info pages.
+- **Auth layout** (`app/(auth)/layout.tsx`): centred card for login, signup,
+  verify, MFA and errors.
+- **PWA**: `app/manifest.ts` (standalone display), favicons for light and dark,
+  Apple touch icon.
+- **Shared UI**: `components/ui.tsx` (`buttonClass`, `INPUT`, `CARD`, `cx`),
+  `components/icons.tsx`, `components/brand/Logo.tsx`.
 
-Per-article meta:
-
-```typescript
-// app/(public)/[username]/[slug]/page.tsx
-export async function generateMetadata({ params }) {
-  return {
-    openGraph: {
-      images: [`/api/og?title=${title}&author=${username}`],
-    },
-  };
-}
-```
-
----
-
-## 6. Freemium Monetization Model
-
-```text
-Free tier
-  └── 5 member-only articles / 30 days (soft paywall — bypass-able by design)
-  └── Unlimited free (non-paywalled) articles
-  └── Can write + publish (free articles)
-
-Premium — $7/mo or $60/yr
-  └── Unlimited reading
-  └── Publish member-only articles
-  └── Read-time tracked internally for future revenue share
-
-Writer earnings (Phase 3 — not before fraud + Stripe Connect + KYC are ready)
-  └── Pool = 70% of subscription revenue
-  └── Share = writer's member read-time / total member read-time
-  └── Paid out monthly via Stripe Connect
-```
+Pages are server components that query Prisma directly. Client components handle
+the editor, forms, comments, votes, sharing and security settings.
 
 ---
 
-## 7. Deployment Architecture
+## 11. Privacy and data lifecycle
 
-### Vercel (Frontend + API)
-
-- Framework preset: Next.js
-- Environment variables: `DATABASE_URL`, `NEXTAUTH_SECRET`, `STRIPE_SECRET_KEY`, `RESEND_API_KEY`, `BLOB_READ_WRITE_TOKEN`, `GOOGLE_CLIENT_ID/SECRET`, `GITHUB_CLIENT_ID/SECRET`
-- Cron jobs: configured in `vercel.json`
-- Preview deployments: automatic on every PR
-
-### Railway (PostgreSQL)
-
-- PostgreSQL 16 service
-- Connection pooling: PgBouncer (Railway add-on)
-- `DATABASE_URL` from Railway → Vercel env
-
-### Cost estimate (early stage, < 10k MAU)
-
-| Service         | Plan                             | Cost       |
-| --------------- | -------------------------------- | ---------- |
-| Vercel Hobby    | Free (100GB bandwidth)           | $0         |
-| Railway         | Hobby (usage-based, $5/mo floor) | ~$5/mo     |
-| Resend          | Free (3,000 emails/mo)           | $0         |
-| Stripe          | 2.9% + $0.30 per transaction     | per-use    |
-| Vercel Blob     | Free (1GB included on Hobby)     | $0         |
-| **Total fixed** |                                  | **~$5/mo** |
-
-> Vercel Blob Hobby includes 1 GB, not 5 GB. Railway Hobby is usage-based with a $5/mo floor, not a flat free tier.
+- **Export**: `GET /api/me/export` returns the profile (including linked
+  providers, subscription status and passkey metadata) and links to eight
+  sections (articles, comments, claps, bookmarks, following, followers, views,
+  feedback), 20 records per page with a `next` link. Credentials, password
+  hashes and TOTP secrets are never exported.
+- **Erasure** (`lib/gdpr.ts`): cancel a live Stripe subscription first, delete
+  the user's R2 image prefix (a failure stops erasure so it can be retried), then
+  in one transaction delete verification tokens, reader views and the user.
+  Everything else cascades. Admins cannot erase themselves through
+  `DELETE /api/me`.
+- **Retention**: `npm run db:cleanup` deletes reader views older than 30 days
+  plus expired sessions, verification tokens and passkey challenges. It is not
+  scheduled automatically; run it daily.
+- **Audit events** (`lib/audit.ts`): one JSON line per event to stdout, with event
+  name, outcome and timestamp only. Events: admin login, password change, role
+  change, erasure, export, passkey login, MFA verify, factor added/removed,
+  recovery codes regenerated.
 
 ---
 
-## 8. Implementation Phases & Milestones
+## 12. Testing and CI
 
-### Sprint 1 (Week 1–2) — Skeleton
+| Suite | Command | Covers |
+| --- | --- | --- |
+| Unit and component | `npm test` | Security helpers (origin, body limit, rate limiter, CSP, admin tokens, reader identity), MFA crypto/TOTP/recovery/WebAuthn validation, story documents and rendering, image pipeline and ClamAV, comment rules, editor ribbon, share bar and trending rail, R2 erasure, navigation and local drafts, auth adapter, launcher dotenv handling |
+| Integration | `npm run test:integration` | Real PostgreSQL 16 and Redis 7: API authorisation and CSRF, mass assignment, export paging, admin token revocation, paywall concurrency, erasure, retention cleanup, shared Redis limits, migrations, and a Playwright check that script-like content stays inert under the production CSP |
 
-- [ ] `npx create-next-app@latest` with TypeScript + Tailwind + App Router
-- [ ] Prisma schema + Railway PostgreSQL connected
-- [ ] GIN/tsvector migration added alongside initial schema
-- [ ] NextAuth (Google + GitHub + magic-link)
-- [ ] Basic article CRUD + slug generation (scoped per author)
-- [ ] Home feed SSR page
-
-### Sprint 2 (Week 3–4) — Core Reading Experience
-
-- [ ] Article page with SSR + OG meta
-- [ ] Tiptap editor with autosave
-- [ ] Tags + topic pages
-- [ ] Claps (auth required) + Comments with soft delete
-- [ ] Author profile page
-
-### Sprint 3 (Week 5–6) — Freemium
-
-- [ ] Stripe subscription checkout + webhook
-- [ ] Server-side paywall (excerpt-only for unauthorized, never CSS overlay)
-- [ ] Member-only article toggle
-- [ ] Subscription settings page
-
-### Sprint 4 (Week 7–8) — Growth
-
-- [ ] Weekly digest email (Resend + React Email, batched)
-- [ ] Dynamic OG images
-- [ ] Social share buttons (intents only)
-- [ ] Search (Postgres FTS via pre-added tsvector column)
-- [ ] Sitemap + robots.txt
+`.github/workflows/security.yml` runs on every pull request and push to `main`:
+`npm ci`, Prisma generate, lint, typecheck, unit tests, `npm audit
+--audit-level=moderate`, migrations, production build and integration tests,
+with read-only repository permissions.
 
 ---
 
-## 9. Key Technical Decisions & Trade-offs
+## 13. Not yet implemented
 
-| Decision             | Choice                      | Alternative               | Reason                                                                           |
-| -------------------- | --------------------------- | ------------------------- | -------------------------------------------------------------------------------- |
-| Full-stack framework | Next.js (monorepo)          | Separate Express/.NET API | Fewer repos, Vercel-native, SSR for SEO; no separate service needed at MVP       |
-| DB                   | PostgreSQL                  | PlanetScale/MySQL         | Full-text search, JSON columns, Railway free tier                                |
-| Auth                 | NextAuth v5                 | Clerk / Supabase Auth     | No vendor lock-in, free, Prisma adapter                                          |
-| Search               | Postgres FTS (tsvector/GIN) | Algolia/Meilisearch       | Zero extra cost for MVP; GIN index added at schema creation, not bolted on later |
-| Payments             | Stripe                      | Paddle                    | Industry standard, best webhook DX                                               |
-| Email                | Resend                      | SendGrid                  | Better DX, React Email templates, generous free tier                             |
-| OG Images            | @vercel/og                  | Puppeteer                 | Edge-native, zero cold start, free                                               |
-| Social sharing       | Share intents               | Direct posting APIs       | No OAuth review, no API pricing risk, no token management                        |
-| Paywall              | Server-side excerpt         | CSS/blur overlay          | Full content must never reach unauthorized clients                               |
-
----
-
-## 10. Security Checklist
-
-- [ ] `NEXTAUTH_SECRET` rotated per environment
-- [ ] Stripe webhook signature verified (`stripe.webhooks.constructEvent`)
-- [ ] Stripe webhook handler is idempotent (deduplicate by `event.id`)
-- [ ] All API mutation routes validate session + ownership (author check)
-- [ ] Zod validation on every API input (no trusting req.body shapes)
-- [ ] Rate limiting on `/api/claps`, `/api/comments`, `/api/auth` (Vercel Edge `@upstash/ratelimit` or simple DB counter)
-- [ ] No secrets in client bundles — all Stripe/Resend calls server-side only
-- [ ] `Content-Security-Policy` header via `next.config.ts`
-- [ ] Image uploads restricted to `image/jpeg,image/png,image/webp`, max 5MB, dimensions validated server-side
-- [ ] CSRF: Next.js App Router Server Actions include CSRF protection by default; verify for any custom API routes using POST with cookies
-- [ ] Email unsubscribe link included in all digest/notification emails (CAN-SPAM / GDPR compliance)
-- [ ] Admin and billing actions logged to an audit table (userId, action, metadata, timestamp)
+| Area | Current state |
+| --- | --- |
+| Stripe billing | SDK and `Subscription` model only. No checkout, portal or webhook. Erasure cancels subscriptions through the API. |
+| Claps, bookmarks, follows | Counted and displayed; no endpoint creates or removes them. The profile Follow button is inert. |
+| Notifications | Header bell is a placeholder. No notification storage or email. |
+| Tag pages | Links go to `/tag/{slug}`, which does not exist. |
+| Search | `search_vector` column and GIN index exist; no API or UI. |
+| Emails beyond sign-in | No welcome, digest, follower or comment emails. |
+| OG images, sitemap, RSS | Not built. Article metadata uses the cover image. |
+| Server autosave | Drafts reach the server only on Save or Publish. |
+| Writer payouts | Not designed in code (no Stripe Connect). |
 
 ---
 
-## 11. Future Enhancements (Post-MVP)
+## 14. Key decisions
 
-- Full-text search upgrade → Meilisearch or Typesense on Railway
-- Writer newsletter (per-author subscriber list via Resend Audiences)
-- Publications (multi-author channels)
-- Mobile app (React Native / Expo sharing types with web)
-- Stripe Connect for writer payouts (with fraud detection, KYC, deduplication)
-- AI-assisted writing (Claude API for title suggestions, readability score)
-- Offline PWA support for premium readers
-- Weekly digest batching with DB checkpointing for scale
-
----
-
-Architecture version: 1.1 — May 2026
+| Decision | Choice | Reason |
+| --- | --- | --- |
+| Application shape | One Next.js app | SSR and API in one deployable; no service boundaries to maintain yet |
+| Reader sessions | Auth.js database sessions | Sessions can be revoked and carry `mfaVerifiedAt` |
+| Admin sessions | Separate short JWT + database version check | Isolates admin access from reader sessions; fast revocation |
+| Second factor | Required for readers, optional for admins | Every reader account is protected from day one; admins also have password + Turnstile |
+| Paywall | Server-side excerpt, advisory lock per reader | Full content never reaches unauthorised clients; quota holds under concurrency |
+| Anonymous identity | Random signed cookie | Supports guest votes and quota without fingerprinting |
+| Rate limits | Redis, fail closed in production | Limits hold across replicas; an outage denies instead of opening the gates |
+| Images | Server re-encode to WebP on R2 | Removes metadata and appended payloads; predictable sizes; cheap egress |
+| Document storage | Tiptap JSON + plain text, allow-list validated | Rich formatting without storing or rendering raw HTML |
+| AI | Direct `fetch` to the Responses API | No SDK dependency; strict timeout, output cap and `store: false` |
+| Search (future) | PostgreSQL full-text | Column already in place; no extra service |

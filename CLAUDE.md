@@ -68,3 +68,38 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
+---
+
+## Project context: Nystara
+
+Long-form blogging platform. One Next.js 16 app (App Router, React 19,
+TypeScript strict), PostgreSQL 16 via Prisma 7, Redis for rate limits. Read
+[ARCHITECTURE.md](ARCHITECTURE.md) before changing auth, the paywall, uploads or
+the request pipeline, and [AGENTS.md](AGENTS.md) for Next.js 16 differences.
+
+### Commands
+
+- Run locally: `./start.sh` (app on port 6100, PostgreSQL 5442, Redis 6389,
+  Mailpit 8035).
+- Verify a change: `npm run lint && npm run typecheck && npm test`.
+- Integration tests need disposable `TEST_DATABASE_URL` and `TEST_REDIS_URL`.
+- Schema change: edit `prisma/schema.prisma`, then `npm run db:migrate -- --name <change>`.
+
+### Rules specific to this codebase
+
+- Request interception is `proxy.ts` (not `middleware.ts`). It enforces
+  same-origin writes, rate limits, the 1 MiB body limit and the CSP nonce for
+  everything under it; don't duplicate those checks in handlers.
+- Use `auth()` for signed-in access. It returns null until the account has a
+  display name and a second factor, and the session has passed MFA. Only the
+  `/mfa` flow uses `authForAccountSetup()` or `authIncludingPendingMfa()`.
+- Admin routes use `getVerifiedAdminSession()` (JWT plus database version check),
+  never the reader session.
+- Validate request bodies with Zod and read them with `readJson()` from
+  `lib/request.ts`.
+- Story content must pass `articleContent` (`lib/article-schema.ts`). Render it
+  only through `StoryContent`; never use `dangerouslySetInnerHTML`.
+- New personal data must cascade on user delete and appear in `GET /api/me/export`.
+- When you add or change an endpoint or control, update `API.md` and
+  `SECURITY.md` in the same change.
