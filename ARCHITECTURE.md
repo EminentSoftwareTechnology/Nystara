@@ -113,7 +113,7 @@ flowchart LR
     admin -->|"manage users and articles"| app
 
     app -->|"bot checks"| turnstile["Cloudflare Turnstile"]
-    app -->|"sign-in emails"| resend["Resend<br/>(Mailpit in dev)"]
+    app -->|"sign-in emails"| resend["Resend<br/>(optional local SMTP capture)"]
     app -->|"OAuth sign-in"| oauth["Google / GitHub"]
     app -->|"store images"| r2["Cloudflare R2"]
     app -->|"scan uploads (optional)"| clamav["ClamAV clamd"]
@@ -126,7 +126,7 @@ flowchart LR
 | External system | Used for | Required |
 | --- | --- | --- |
 | Cloudflare Turnstile | Bot check on email/OAuth sign-in, admin login, guest comments | Yes |
-| Resend | Sign-in emails in production (Nodemailer + Mailpit in development) | Yes, for email sign-in |
+| Resend | Sign-in, account/activity emails and digests in all environments (optional local SMTP capture) | Yes, for email sign-in |
 | Google, GitHub | OAuth sign-in | Optional |
 | Cloudflare R2 | Public image storage | Optional (uploads return `503` without it) |
 | ClamAV | Upload virus scanning | Optional (fails closed when configured) |
@@ -219,7 +219,7 @@ flowchart LR
 
 | Environment | How it runs |
 | --- | --- |
-| Local | `./start.sh`: app on 6100, PostgreSQL 5442, Redis 6389, Mailpit 8035 (`docker-compose.dev.yml`) |
+| Local | `./start.sh`: app on 6100, PostgreSQL 5442, Redis 6389, optional Mailpit 8035 (`EMAIL_PROVIDER=smtp`, `docker-compose.dev.yml`) |
 | Self-hosted | `docker-compose.yml`: PostgreSQL, Redis (128 MB, `noeviction`), app built from `Dockerfile` |
 | Railway | `railway.toml`: Dockerfile build, start `./docker-entrypoint.sh node server.js`, health check `/api/health`, restart on failure (3 retries) |
 

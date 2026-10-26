@@ -2,6 +2,7 @@ import type { DigestFrequency } from "@prisma/client";
 import { SignJWT, jwtVerify } from "jose";
 import { trendingArticles } from "./engagement";
 import { deliverEmail } from "./email/send";
+import { usesResend } from "./email/provider";
 import { appLink, renderEmail, type DigestSection } from "./email/templates";
 import { prisma } from "./prisma";
 import { isExplicitTheme } from "./theme";
@@ -148,7 +149,7 @@ export async function sendDueDigests(now = new Date()) {
         stats.failed++;
       }
       // Resend's default limit is a few requests per second.
-      if (process.env.NODE_ENV === "production" || process.env.EMAIL_PROVIDER === "resend") await new Promise((resolve) => setTimeout(resolve, 300));
+      if (usesResend()) await new Promise((resolve) => setTimeout(resolve, 300));
     }
   }
   return stats;

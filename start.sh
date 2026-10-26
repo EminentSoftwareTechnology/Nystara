@@ -130,14 +130,15 @@ fi
 DB_LOCAL="$(node -e 'const u=new URL(process.env.DATABASE_URL);console.log(["localhost","127.0.0.1","[::1]"].includes(u.hostname)?"1":"0")')"
 if [ "$DB_LOCAL" = 1 ]; then
   require_container_engine
-  log "Starting local Postgres, Redis, and Mailpit with $CONTAINER_ENGINE"
+  log "Starting local Postgres and Redis with $CONTAINER_ENGINE"
   compose -f docker-compose.dev.yml up -d --wait --wait-timeout 60
 elif [ "${ALLOW_REMOTE_MIGRATE:-0}" != 1 ]; then
   die "Remote database migrations require ALLOW_REMOTE_MIGRATE=1."
-elif [ "$MODE" = dev ]; then
+fi
+if [ "$MODE" = dev ] && [ "${EMAIL_PROVIDER:-resend}" = smtp ]; then
   require_container_engine
   log "Starting local Mailpit with $CONTAINER_ENGINE"
-  compose -f docker-compose.dev.yml up -d --wait --wait-timeout 60 mailpit
+  compose -f docker-compose.dev.yml --profile smtp up -d --wait --wait-timeout 60 mailpit
 fi
 log "Generating Prisma client and applying migrations"
 npm run db:generate

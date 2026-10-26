@@ -31,7 +31,7 @@ cd Nystara
 
 `start.sh` installs dependencies, creates `.env.local` with random secrets if
 you have no env file, starts PostgreSQL (`127.0.0.1:5442`), Redis
-(`127.0.0.1:6389`) and Mailpit (<http://localhost:8035>), applies migrations and
+(`127.0.0.1:6389`), applies migrations and
 runs the app at <http://localhost:6100>. It never resets or seeds your database.
 
 Optional seed data:
@@ -41,7 +41,9 @@ ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='a-long-unique-password' npm run db:s
 npm run db:seed:demo   # 50 users (user1@gmail.com …) and 10 stories
 ```
 
-Sign in through the email link that arrives in Mailpit. New accounts must add a
+Set `RESEND_API_KEY` and a verified `EMAIL_FROM` in `.env.local`. Sign in through
+the email link in your inbox. For offline capture, set `EMAIL_PROVIDER=smtp`;
+`start.sh` then starts Mailpit at <http://localhost:8035>. New accounts must add a
 display name and a passkey or authenticator app before the app opens. Passkeys
 work on `localhost` in current browsers.
 

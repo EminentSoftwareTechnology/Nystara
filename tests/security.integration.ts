@@ -100,6 +100,7 @@ test("production rejects CAPTCHA test keys and direct email provider bypass", as
   const login = await request("/api/admin/login", undefined, "POST", { email: "admin-review@example.test", password: "review-password-1234", turnstileToken: "fake" });
   assert.equal(login.status, 400);
   assert.equal((await request("/api/auth/signin/resend", undefined, "POST", { email: "spam@example.test" })).status, 403);
+  assert.equal((await request("/api/auth/signin/nodemailer", undefined, "POST", { email: "spam@example.test" })).status, 403);
 });
 
 test("export contains only the caller's data and pages all article content", async () => {

@@ -18,6 +18,7 @@
     "test:integration": "node --import tsx --test tests/*.integration.ts",
     "typecheck": "tsc --noEmit",
     "email:preview": "node --import tsx scripts/preview-emails.mts",
+    "email:test": "node --import tsx scripts/test-email.mts",
     "db:cleanup": "node --import tsx scripts/cleanup.ts",
     "db:encrypt": "node --import tsx scripts/encrypt-existing.ts",
     "digests": "node --import tsx scripts/send-digests.ts"

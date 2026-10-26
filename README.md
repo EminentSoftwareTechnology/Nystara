@@ -68,8 +68,7 @@ data, plus the new message and its attachments. No remote file URLs are fetched.
 
 ### Accounts and security
 
-- Sign-in with Google, GitHub, an email link (Resend in production, Mailpit
-  locally) or a passkey. Sign-in and sign-up are separate flows.
+- Sign-in with Google, GitHub, an email link (Resend locally and in staging/production) or a passkey. Sign-in and sign-up are separate flows.
 - Email links open a confirmation page first, so mail scanners cannot use up the
   one-time token.
 - **Required account setup**: every reader account must have a display name and
@@ -107,7 +106,7 @@ advertise them as features.
 - **Notifications inbox**: the header Notifications bell has no inbox yet.
 - **Search**: the `search_vector` full-text column and GIN index exist; there is
   no search endpoint or UI.
-- **Email notifications and digests**, OG image generation, sitemap and RSS.
+- **OG image generation**, sitemap and RSS.
 - **Server autosave**: drafts save to the server only when the writer saves.
 
 ## Tech stack
@@ -123,7 +122,7 @@ advertise them as features.
 | Admin auth | Separate HS256 JWT cookie (`jose`) and bcrypt passwords |
 | Editor | Tiptap 3 (StarterKit, text align, text style, image, placeholder, custom video node) |
 | Images | Cloudflare R2 through the AWS S3 SDK; `sharp` for re-encoding; optional ClamAV |
-| Email | Resend (production), Nodemailer to Mailpit (development) |
+| Email | Resend (local, staging and production); optional Mailpit capture |
 | Bot protection | Cloudflare Turnstile |
 | AI | OpenAI Responses API (direct `fetch`, no SDK) |
 | Validation | Zod 4 |
@@ -143,7 +142,7 @@ The launcher:
 1. Installs locked dependencies when needed.
 2. Creates `.env.local` from `.env.example` with random secrets if no env file
    exists (file mode 600).
-3. Starts local PostgreSQL, Redis and Mailpit (loopback only).
+3. Starts local PostgreSQL and Redis (loopback only). Mailpit starts only with `EMAIL_PROVIDER=smtp`.
 4. Generates the Prisma client and applies migrations. It never resets or seeds.
 5. Starts Next.js on <http://localhost:6100> and opens the browser.
 
@@ -152,7 +151,7 @@ The launcher:
 | App | `http://localhost:6100` |
 | PostgreSQL | `127.0.0.1:5442` (user/password/db `nystara`) |
 | Redis | `127.0.0.1:6389` |
-| Mailpit inbox | <http://localhost:8035> (SMTP on `127.0.0.1:1035`) |
+| Optional Mailpit inbox | <http://localhost:8035> (SMTP on `127.0.0.1:1035`; `EMAIL_PROVIDER=smtp`) |
 
 Other modes: `./start.sh prod` (local production build; needs real Turnstile
 keys, Redis and `MFA_ENCRYPTION_KEY`), `./start.sh docker` (full Compose stack),
@@ -160,7 +159,8 @@ keys, Redis and `MFA_ENCRYPTION_KEY`), `./start.sh docker` (full Compose stack),
 
 Notes:
 
-- Sign in with the email link: the message arrives in Mailpit. In development,
+- Set `RESEND_API_KEY` and a verified `EMAIL_FROM` in `.env.local`, then sign in
+  with the email link in your inbox. In development,
   Turnstile is skipped when no secret key is set.
 - `HOST` defaults to `127.0.0.1`. If you change `PORT`, also set `NEXTAUTH_URL` to
   the same origin, or API writes fail the same-origin check.
@@ -201,7 +201,7 @@ its own demo story slugs. Scheduled demo stories are one week ahead.
 | `npm run db:seed` / `db:seed:demo` | Admin seed / demo content |
 | `npm run db:cleanup` | Delete reader views older than 30 days and expired sessions, tokens and passkey challenges. Run daily. |
 
-Email templates, event coverage, unsubscribe and Mailpit checks: [EMAILS.md](EMAILS.md).
+Email templates, the preview gallery, Resend tests and unsubscribe checks: [EMAILS.md](EMAILS.md).
 
 ## Environment variables
 
@@ -217,9 +217,10 @@ Email templates, event coverage, unsubscribe and Mailpit checks: [EMAILS.md](EMA
 | `REDIS_URL` | yes (prod) | Shared rate limits; production fails closed without it |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | yes (prod) | Real keys; test keys are rejected in production |
 | `GOOGLE_*`, `GITHUB_*` | optional | OAuth providers |
-| `RESEND_API_KEY` | prod email | Sign-in emails in production |
-| `EMAIL_SERVER`, `EMAIL_FROM` | dev email | Mailpit SMTP in development |
-| `EMAIL_PROVIDER` | optional | `resend` sends development email through Resend |
+| `RESEND_API_KEY` | email | Resend delivery in local, staging and production |
+| `EMAIL_FROM` | email | Sender address on a domain verified in Resend |
+| `EMAIL_SERVER` | optional | Local SMTP capture with `EMAIL_PROVIDER=smtp` |
+| `EMAIL_PROVIDER` | optional | Defaults to Resend; `smtp` enables development-only capture |
 | `R2_*` | for uploads | Cloudflare R2 bucket, keys and public URL |
 | `CLAMAV_HOST`, `CLAMAV_PORT` | optional | Upload virus scanning (fails closed when set) |
 | `OPENAI_API_KEY` | for AI editor | Server-only OpenAI Responses API credential; never use a `NEXT_PUBLIC_` key |

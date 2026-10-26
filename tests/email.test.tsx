@@ -13,7 +13,7 @@ for (const theme of EMAIL_THEMES) {
       const content = EMAIL_EVENTS[event];
       const message = await renderEmail(event, { theme, name: '<img src=x onerror="alert(1)"> & Reader', detail: '<script>alert("x")</script>', unsubscribeUrl: content.category === "activity" ? "http://localhost:6100/unsubscribe?token=synthetic" : undefined });
       assert.equal(message.subject, content.subject);
-      assert.match(message.html, /max-width:720px/);
+      assert.match(message.html, /max-width:800px/);
       assert.match(message.html, new RegExp(EMAIL_PALETTES[theme].card));
       assert.match(message.html, new RegExp(`/brand/email/${theme}.png`));
       assert.match(message.html, /alt="Nystara orbital logo"/);
@@ -36,6 +36,16 @@ test("sign-in preserves scanner-safe verification URL and token in HTML and text
   assert.match(message.html, /\/verify\?token=one-time&amp;provider=nodemailer/);
   assert.ok(message.text.includes("/verify?token=one-time"));
   assert.match(message.text, /24 hours/);
+});
+
+test("welcome explains account setup, working features and premium AI limits with local links", async () => {
+  const message = await renderEmail("welcome");
+  for (const path of ["/mfa", "/settings", "/me/library", "/me/following", "/settings/notifications", "/new-story", "/me/stories", "/ai-editor", "/me/stats", "/me/security"]) {
+    assert.ok(message.html.includes(`http://localhost:6100${path}`), path);
+  }
+  for (const text of ["Save draft", "recovery codes", "reading history", "premium access", "Export your account data"]) assert.ok(message.text.includes(text), text);
+  const security = await renderEmail("passkey-added");
+  assert.ok(!security.text.includes("Build your library"));
 });
 
 test("email actions reject external, protocol-relative and unsafe links", async () => {
