@@ -11,6 +11,7 @@ before your first launch. They list operator duties the code cannot do for you.
 
 - [What you need](#what-you-need)
 - [Environment variables](#environment-variables)
+- [Google and GitHub sign-in](#google-and-github-sign-in)
 - [Railway](#railway)
 - [Docker on your own host](#docker-on-your-own-host)
 - [Other platforms](#other-platforms)
@@ -76,6 +77,81 @@ which is inlined at build time and must be passed as a Docker build argument.
 staging/production; set `RESEND_API_KEY` in each environment. Development-only:
 `EMAIL_PROVIDER=smtp` and `EMAIL_SERVER` (optional Mailpit), `PORT`, `HOST`,
 `POSTGRES_PASSWORD` (local Compose), `ADMIN_EMAIL` / `ADMIN_PASSWORD` (seed).
+
+---
+
+## Google and GitHub sign-in
+
+Both providers are already integrated through Auth.js in `auth.config.ts`.
+Credentials alone are insufficient: register the exact callback for the app's
+`NEXTAUTH_URL` in the provider console. These are the current local and staging
+values:
+
+| Environment | Homepage / origin | Google callback | GitHub callback |
+| --- | --- | --- | --- |
+| Local | `http://localhost:6100` | `http://localhost:6100/api/auth/callback/google` | `http://localhost:6100/api/auth/callback/github` |
+| Railway staging | `https://nystara-uat.up.railway.app` | `https://nystara-uat.up.railway.app/api/auth/callback/google` | `https://nystara-uat.up.railway.app/api/auth/callback/github` |
+
+### Google
+
+1. Open [Google Auth Platform → Clients](https://console.cloud.google.com/auth/clients)
+   in the project that owns the configured `GOOGLE_CLIENT_ID`.
+2. Select the matching **Web application** client. If creating one, configure
+   Branding and Audience, then create a Web application client.
+3. Under **Authorized redirect URIs**, enter the complete Google callback above.
+   If the same client serves local and staging, register both callbacks. An
+   origin alone does not authorize a callback path.
+4. If using Authorized JavaScript origins, enter only the homepage / origin.
+   Local development uses **HTTP**, not HTTPS. Keep `localhost` consistent with
+   `NEXTAUTH_URL`; `127.0.0.1` is a different hostname.
+5. Save. Put the matching client ID and secret in `.env.local` for development
+   and the Railway staging app service's variables. Restart the local server
+   and redeploy staging after changing credentials. If the consent screen is
+   in Testing, add the intended sign-in accounts under Audience → Test users.
+6. Retry from `/login` after completing its CAPTCHA. Google settings may take
+   time to propagate. New accounts continue to `/mfa` for required setup.
+
+`Error 400: redirect_uri_mismatch` means Google's registered redirect differs
+from the request's `redirect_uri`. Match the protocol, hostname, port, path and
+trailing slash exactly. This app uses `/api/auth/callback/google`; the old
+`/api/v1/auth/google/callback` path does not match. Adding the URL to JavaScript
+origins does not fix a missing redirect URI. See
+[Google's web-server OAuth guide](https://developers.google.com/identity/protocols/oauth2/web-server#authorization-errors-redirect-uri-mismatch).
+
+### GitHub
+
+Use a GitHub **OAuth App** for this existing provider integration. Prefer
+separate apps for local development and staging to keep credentials isolated.
+
+1. In GitHub, open your profile → **Settings → Developer settings → OAuth Apps
+   → New OAuth App**. For organization ownership, start in the organization's
+   settings instead. Follow the official
+   [OAuth App registration guide](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app).
+2. Name the app `Nystara Local` or `Nystara Staging`. Set **Homepage URL** to the
+   corresponding homepage above and **Authorization callback URL** to its
+   GitHub callback. Device flow is not needed for this web sign-in.
+3. Register the application. Copy its **Client ID**, then choose **Generate a
+   new client secret** on the application's settings page. GitHub documents
+   [where to find these credentials](https://docs.github.com/en/rest/authentication/authenticating-to-the-rest-api).
+4. Set these server-only variables, using each environment's own credentials:
+
+   ```dotenv
+   GITHUB_CLIENT_ID=<OAuth App Client ID>
+   GITHUB_CLIENT_SECRET=<OAuth App client secret>
+   ```
+
+5. Restart local development or redeploy Railway staging. Complete the CAPTCHA
+   on `/login`, choose **Continue with GitHub**, and authorize the app. Verify
+   the callback returns to Nystara and then `/mfa` or account setup.
+
+A personal access token is not an OAuth client secret. Keep secrets out of
+`NEXT_PUBLIC_*` variables, source control, screenshots and chat.
+
+If an email already belongs to a Nystara account created through another
+provider, Auth.js can return `OAuthAccountNotLinked`. Sign in with the original
+method. Nystara does not yet expose a social-account linking screen; do not
+enable automatic email-based linking simply to bypass this protection. See
+[Auth.js account-linking errors](https://authjs.dev/reference/core/errors#oauthaccountnotlinked).
 
 ---
 
