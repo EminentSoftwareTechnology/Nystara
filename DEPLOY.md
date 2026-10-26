@@ -30,7 +30,7 @@ before your first launch. They list operator duties the code cannot do for you.
 | PostgreSQL 16 | Primary data store | Private network, TLS and authentication |
 | Redis 7 | Rate limits shared across replicas | **Required in production**: without it, limited requests are denied. Use a dedicated instance with bounded memory and `maxmemory-policy noeviction` |
 | Cloudflare Turnstile | Bot checks on sign-in, admin login and guest comments | Real keys; the documented test keys are rejected in production |
-| Resend | Sign-in emails | Verify the sending domain (SPF/DKIM). The sender is `noreply@nystara.com` (`auth.config.ts`) |
+| Resend | Sign-in emails | Verify the sending domain (SPF/DKIM). Set `EMAIL_FROM` to a verified sender; the default is `Nystara <noreply@nystara.com>` |
 | Google and/or GitHub OAuth apps | Optional social sign-in | Callback URLs: `{NEXTAUTH_URL}/api/auth/callback/google` and `/github` |
 | Cloudflare R2 | Image uploads | Bucket-scoped Object Read & Write token; public custom domain or `r2.dev` URL |
 | ClamAV (`clamd`) | Optional upload scanning | Reachable over TCP; uploads fail closed when configured but unreachable |
@@ -72,7 +72,9 @@ which is inlined at build time and must be passed as a Docker build argument.
 | `TRUST_PROXY_IP` | `1` only if your ingress appends or overwrites `X-Forwarded-For` **and** direct access to the app is blocked. With `0` (default) all clients share one per-IP bucket; per-user and per-email limits still apply |
 | `STRIPE_WEBHOOK_SECRET`, `BLOB_READ_WRITE_TOKEN` | Reserved; not read by current code |
 
-Development-only: `EMAIL_SERVER`, `EMAIL_FROM` (Mailpit), `PORT`, `HOST`,
+`EMAIL_FROM` applies to all email delivery. Resend is the default locally and in
+staging/production; set `RESEND_API_KEY` in each environment. Development-only:
+`EMAIL_PROVIDER=smtp` and `EMAIL_SERVER` (optional Mailpit), `PORT`, `HOST`,
 `POSTGRES_PASSWORD` (local Compose), `ADMIN_EMAIL` / `ADMIN_PASSWORD` (seed).
 
 ---

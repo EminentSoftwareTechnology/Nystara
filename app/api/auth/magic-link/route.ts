@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyTurnstile } from "@/lib/turnstile";
 import { rateLimit } from "@/lib/rate-limit";
 import { readJson } from "@/lib/request";
+import { usesResend } from "@/lib/email/provider";
 
 const schema = z.discriminatedUnion("intent", [
   z.object({
@@ -54,7 +55,7 @@ export async function POST(req: NextRequest) {
   // account's name rides along in the link so it works even when opened on another device.
   const redirectTo = input.intent === "signup" ? `/mfa?name=${encodeURIComponent(input.name)}` : "/mfa";
   try {
-    await signIn(process.env.NODE_ENV === "production" ? "resend" : "nodemailer", { email, redirect: false, redirectTo });
+    await signIn(usesResend() ? "resend" : "nodemailer", { email, redirect: false, redirectTo });
   } catch {
     return NextResponse.json({ error: "Failed to send magic link" }, { status: 500 });
   }

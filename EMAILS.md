@@ -1,6 +1,6 @@
 # Nystara email templates
 
-17 events share a responsive, 720px table layout with the orbital PNG mark,
+20 events share a responsive, 800px table layout with the orbital PNG mark,
 Nystara name, editorial hero, primary action, plain-text alternative, and links
 to stories, contact, privacy, terms and email preferences. Light, dark and sand
 use the app’s existing design tokens. Fonts fall back to Georgia and Arial.
@@ -28,8 +28,8 @@ use the app’s existing design tokens. Fonts fall back to Georgia and Arial.
 Reply recipients and story authors are deduplicated; people are not emailed
 about their own comments. Publication and role no-ops do not generate emails.
 Autosaves, page reads, feedback votes and paginated export GETs do not send
-emails. Follow mutations, billing checkout/webhooks and newsletter sending are
-not implemented in this app, so this change does not invent those workflows.
+emails. Follow mutations do not send emails. Billing checkout/webhooks are not
+implemented in this app.
 No passwords, recovery codes, TOTP secrets, export data or comment bodies are
 included in messages. Story messages use generic text rather than draft content.
 
@@ -59,11 +59,13 @@ Invalid/expired tokens cannot write. Repeated requests are safe. Essential
 sign-in, security and account messages remain enabled. Rotating NEXTAUTH_SECRET
 invalidates old unsubscribe links; account settings remain available.
 
-Delivery uses Mailpit SMTP in development (`EMAIL_SERVER`, default port 1035),
-and Resend in production (`RESEND_API_KEY`). Set `EMAIL_PROVIDER=resend` to send
-through Resend from a development server. `EMAIL_FROM` overrides the sender; it
-must be on a domain verified in Resend whenever Resend is used. Set `NEXTAUTH_URL` to the canonical app
-origin so images and links resolve correctly. PNG logos are served from
+Delivery defaults to Resend in local development, staging and production
+(`RESEND_API_KEY`). For optional offline development capture, explicitly set
+`EMAIL_PROVIDER=smtp` (`EMAIL_SERVER`, default port 1035); production always uses
+Resend. The auth provider and notification delivery use the same selection.
+`EMAIL_FROM` overrides the sender; use a domain verified in Resend.
+Set `NEXTAUTH_URL` to the canonical app origin so images and links resolve
+correctly. PNG logos are served from
 `public/brand/email/`; generate replacements from the corresponding brand SVGs.
 
 Sign-in delivery failures fail the sign-in request. Other notifications are
@@ -74,17 +76,38 @@ Clients may simplify rounded corners or override colors in forced dark mode.
 
 ## Preview and verify
 
-Start the app and the existing dev Mailpit service, then:
+Render the gallery without sending any messages:
 
 ```sh
 npm run email:preview
-npm run email:preview -- --send
 ```
 
-The runner writes all 51 HTML/text variants and `index.html` to
+The runner writes all 60 HTML/text variants and `index.html` to
 `/private/tmp/nystara-email-previews` (override `EMAIL_PREVIEW_DIR`). Set
-`NEXTAUTH_URL` to the local app’s actual origin. Sending refuses production and
-non-loopback SMTP hosts, and uses only synthetic `@nystara.test` recipients.
+`NEXTAUTH_URL` to the local app’s actual origin. The gallery displays every event
+and theme in a selectable preview pane. Welcome includes account setup and a
+linked guide to reading, writing, library, follows, stats, AI access, email
+preferences and account controls. All templates use the wider layout while
+retaining fluid widths and reduced padding on phones.
+
+Send two clearly labelled template tests through Resend to an explicit recipient:
+
+```sh
+npm run email:test -- --to you@example.com
+```
+
+The script loads `.env.local`, sends welcome and sign-in previews, and prints
+Resend acceptance IDs. The sign-in preview opens `/login` and has no token.
+Acceptance confirms the API accepted a message; check the recipient inbox and
+Resend dashboard for delivery. Sending-only keys cannot read delivery status.
+Never bulk-send previews through Resend. Offline bulk capture is opt-in:
+
+```sh
+EMAIL_PROVIDER=smtp npm run email:preview -- --send
+```
+
+It refuses production, non-loopback SMTP hosts and any provider other than
+explicit SMTP, and uses only synthetic `@nystara.test` recipients.
 Preview sign-in/unsubscribe tokens are deliberately synthetic; use the live
 integration test for functional links. Open Mailpit at the port configured in
 `docker-compose.dev.yml` (8035).
@@ -100,7 +123,8 @@ TEST_DATABASE_URL=postgresql://nystara:nystara@127.0.0.1:5442/nystara_email_test
 node --import tsx --test tests/email.integration.ts
 ```
 
-The live test requires a development server with Mailpit SMTP and no production
+The live test requires a development server with `EMAIL_PROVIDER=smtp`, Mailpit
+SMTP and no production
 Turnstile keys; it creates and cleans up synthetic users. It verifies sign-in
 links, theme persistence, captured multipart mail, one-click headers, scanner-safe
 GET, signed POST, activity suppression, essential delivery and footer/logo URLs.

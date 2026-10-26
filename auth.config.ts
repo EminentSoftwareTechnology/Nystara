@@ -5,6 +5,7 @@ import Resend from "next-auth/providers/resend";
 import Nodemailer from "next-auth/providers/nodemailer";
 import type { EmailConfig } from "next-auth/providers/email";
 import { jwtVerify } from "jose";
+import { usesResend } from "@/lib/email/provider";
 
 const ADMIN_COOKIE = "admin_session";
 
@@ -56,10 +57,10 @@ export const authConfig = {
       clientSecret: process.env.GITHUB_CLIENT_SECRET!,
     }),
     confirmBeforeSignIn(
-      process.env.NODE_ENV === "production"
+      usesResend()
         ? Resend({
             apiKey: process.env.RESEND_API_KEY!,
-            from: "noreply@nystara.com",
+            from: process.env.EMAIL_FROM ?? "Nystara <noreply@nystara.com>",
           })
         : Nodemailer({
             server: process.env.EMAIL_SERVER ?? "smtp://127.0.0.1:1035",

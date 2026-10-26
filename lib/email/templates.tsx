@@ -26,6 +26,29 @@ export const EMAIL_EVENTS = {
 
 export type EmailEvent = keyof typeof EMAIL_EVENTS;
 export type DigestSection = { heading: string; items: { title: string; path: string; meta: string }[] };
+const WELCOME_SECTIONS: DigestSection[] = [
+  { heading: "Start here", items: [
+    { title: "1. Finish your account setup", path: "/mfa", meta: "Choose your display name and add a passkey or authenticator app to unlock your account. Save the recovery codes somewhere safe." },
+    { title: "2. Make your profile yours", path: "/settings", meta: "Add a photo and bio, choose your username, and pick a light, dark, sand or system appearance." },
+    { title: "3. Find your next read", path: "/", meta: "Browse the latest and most-clapped stories, explore topics, and open a writer’s profile to discover more of their work." },
+  ] },
+  { heading: "Read, collect and connect", items: [
+    { title: "Build your library", path: "/me/library", meta: "Bookmark stories for later, organise reading lists, save public lists, highlight passages, and revisit your reading history and responses." },
+    { title: "Follow your interests", path: "/me/following", meta: "Follow writers and topics to shape your feed. Find more people to read through writer suggestions." },
+    { title: "Join the conversation", path: "/", meta: "Clap for stories, leave a like or dislike, give a star rating, and comment or reply. Share a story’s link with someone who would enjoy it." },
+    { title: "Choose what reaches your inbox", path: "/settings/notifications", meta: "Choose a daily, weekly or monthly digest, set your email theme, and turn activity emails on or off. Essential account and security messages stay enabled." },
+  ] },
+  { heading: "Write something worth keeping", items: [
+    { title: "Open your writing desk", path: "/new-story", meta: "Start with a title and your words. Use headings, fonts, lists, quotes, code and links; add images, a cover, or YouTube and Vimeo embeds, and choose a document theme. Uploads need storage to be configured." },
+    { title: "Save, publish and share", path: "/me/stories", meta: "Use Save draft to keep work on your account, then reopen it from Stories. Publish when you’re ready, share an unlisted story by direct link, or mark a story members-only. Drafts also keep a browser copy." },
+    { title: "Bring an AI editor to your draft", path: "/ai-editor", meta: "Ask for ideas, outlines, titles or passage edits in a private writing conversation, with supported file attachments. Copy suggestions or append them to a new story. AI is available with active premium access when enabled by Nystara; review every suggestion before publishing." },
+    { title: "Understand your readers", path: "/me/stats", meta: "Review story views and engagement in Stats, and visit Audience to see your followers. Your Stories page keeps your writing in one place." },
+  ] },
+  { heading: "Stay in control", items: [
+    { title: "Protect your account", path: "/me/security", meta: "Manage passkeys, your authenticator app and recovery codes. Never share a sign-in link or recovery code." },
+    { title: "Your data and a helping hand", path: "/settings", meta: "Export your account data or delete your account from Settings. Open Help for writing tips, or use Contact in this email’s footer to reach us." },
+  ] },
+];
 export const EMAIL_THEMES = ["light", "dark", "sand"] as const;
 export const EMAIL_PALETTES = {
   light: { page: "#ffffff", card: "#f9fafb", text: "#000000", muted: "#4b5563", border: "#e6e8ec", accent: "#14224a", onAccent: "#ffffff", wall: "#efe2c4" },
@@ -51,6 +74,7 @@ function EmailTemplate({ event, origin, ...options }: EmailOptions & { event: Em
   const content = EMAIL_EVENTS[event];
   const theme = options.theme ?? "light";
   const colors = EMAIL_PALETTES[theme];
+  const sections = event === "welcome" ? WELCOME_SECTIONS : options.sections;
   const action = options.actionUrl ? appLink(options.actionUrl, origin) : appLink(options.actionPath ?? content.path, origin);
   const linkStyle = { color: colors.muted, textDecoration: "underline" };
   return (
@@ -62,7 +86,7 @@ function EmailTemplate({ event, origin, ...options }: EmailOptions & { event: Em
       </Head>
       <Preview>{content.subject}. {content.description}</Preview>
       <Body className="email-shell" style={{ margin: 0, padding: "32px 16px", backgroundColor: colors.page, color: colors.text, fontFamily: "Arial, Helvetica, sans-serif", fontSize: "16px", lineHeight: "26px" }}>
-        <Container style={{ width: "100%", maxWidth: "720px", margin: "0 auto", backgroundColor: colors.card, border: `1px solid ${colors.border}`, borderRadius: "24px", overflow: "hidden" }}>
+        <Container style={{ width: "100%", maxWidth: "800px", margin: "0 auto", backgroundColor: colors.card, border: `1px solid ${colors.border}`, borderRadius: "24px", overflow: "hidden" }}>
           <Section className="email-pad" style={{ padding: "40px 48px", borderBottom: `1px solid ${colors.border}` }}>
             <Link href={origin} style={{ color: colors.text, textDecoration: "none" }}>
               <Img src={appLink(`/brand/email/${theme}.png`, origin)} width="48" height="48" alt="Nystara orbital logo" style={{ display: "inline-block", verticalAlign: "middle", marginRight: "12px" }} />
@@ -75,7 +99,7 @@ function EmailTemplate({ event, origin, ...options }: EmailOptions & { event: Em
           <Section className="email-pad" style={{ padding: "36px 48px 44px", overflowWrap: "anywhere", wordBreak: "break-word" }}>
             <Text style={{ margin: "0 0 16px", fontSize: "16px", color: colors.text }}>Hello{options.name ? ` ${options.name}` : ""},</Text>
             <Text style={{ margin: "0 0 24px", fontSize: "16px", lineHeight: "26px", color: colors.text }}>{content.description}</Text>
-            {options.sections?.map((section) => (
+            {sections?.map((section) => (
               <Section key={section.heading} style={{ margin: "0 0 28px" }}>
                 <Text style={{ margin: "0 0 8px", color: colors.muted, fontSize: "11px", letterSpacing: "2px", fontWeight: 700 }}>{section.heading.toUpperCase()}</Text>
                 {section.items.map((item) => (
@@ -91,7 +115,7 @@ function EmailTemplate({ event, origin, ...options }: EmailOptions & { event: Em
             {event === "sign-in" && <Text style={{ fontSize: "12px", lineHeight: "20px", marginTop: "24px", color: colors.muted }}>Button not working? <Link href={action} style={linkStyle}>Open your secure sign-in link</Link>. Never forward this email or share your link.</Text>}
           </Section>
         </Container>
-        <Container style={{ width: "100%", maxWidth: "720px", padding: "24px 20px", textAlign: "center" }}>
+        <Container style={{ width: "100%", maxWidth: "800px", padding: "24px 20px", textAlign: "center" }}>
           <Text style={{ color: colors.muted, fontFamily: "Georgia, 'Times New Roman', serif", fontSize: "18px", margin: "0 0 12px" }}>Long-form writing that lasts.</Text>
           <Text style={{ fontSize: "12px", lineHeight: "24px", color: colors.muted, margin: "0 0 12px" }}>
             <Link href={appLink("/", origin)} style={linkStyle}>Read stories</Link>{" · "}<Link href={appLink("/contact", origin)} style={linkStyle}>Contact</Link>{" · "}<Link href={appLink("/privacy", origin)} style={linkStyle}>Privacy</Link>{" · "}<Link href={appLink("/terms", origin)} style={linkStyle}>Terms</Link>

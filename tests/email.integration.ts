@@ -11,6 +11,8 @@ const mailpit = process.env.TEST_MAILPIT_URL ?? "http://127.0.0.1:8035";
 test("live email flow: authentication, saved theme, signed unsubscribe and essential delivery in Mailpit", { skip: !base, timeout: 120_000 }, async () => {
   assert.ok(database && /_test$/.test(new URL(database).pathname), "Use an isolated *_test database");
   for (const url of [base!, mailpit]) assert.ok(["localhost", "127.0.0.1"].includes(new URL(url).hostname), "Local services only");
+  const providers = await fetch(`${base}/api/auth/providers`).then((response) => response.json()) as Record<string, unknown>;
+  assert.ok(providers.nodemailer && !providers.resend, "Start the test app with EMAIL_PROVIDER=smtp; never send synthetic integration mail through Resend");
   const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: database }) });
   const email = `email-qa-${randomUUID()}@nystara.test`;
   const user = await prisma.user.create({ data: { email, name: "Email QA", username: `email-qa-${randomUUID()}`, mfaEnabled: true } });

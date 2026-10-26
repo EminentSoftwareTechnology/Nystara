@@ -29,7 +29,7 @@ async function guardApi(req: NextRequest): Promise<NextResponse | null> {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     // Magic links must go through /api/auth/magic-link, which enforces Turnstile.
-    if (pathname === "/api/auth/signin/resend") {
+    if (["/api/auth/signin/resend", "/api/auth/signin/nodemailer"].includes(pathname)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
   }
