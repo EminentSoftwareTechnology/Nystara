@@ -185,6 +185,11 @@ generate fresh `NEXTAUTH_SECRET`, `ADMIN_JWT_SECRET`, `MFA_ENCRYPTION_KEY` and
 empty database; it does not copy staging users or sessions. Preserve the new encryption
 keys with the production backups.
 
+Ensure Redis can write its mounted `/data` directory as the `redis` user before
+starting persistence. Verify a background save succeeds; otherwise Redis can reject
+rate-limit writes. Apply startup-command changes through a fresh configuration
+deployment: redeploying a historical Railway deployment can reuse its old command.
+
 When sharing staging's R2 bucket, set `R2_KEY_PREFIX=production/` on the production
 web app and newsroom worker before uploading anything. Images, ownership validation
 and account erasure use this isolated directory. Leave staging's prefix unchanged.
