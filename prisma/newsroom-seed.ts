@@ -11,6 +11,7 @@ import { buildStory, cachedResearch, draftSchema, type Research } from "./newsro
 import { generate, researchTopic } from "./newsroom/openai";
 import { r2Config } from "../lib/r2";
 import { newsroomImages, writeNewsroomImages } from "./newsroom/media";
+import { storyNode, documentText } from "../lib/story-document";
 
 const { values } = parseArgs({ options: {
   date: { type: "string", default: new Date().toISOString().slice(0, 10) },
@@ -63,8 +64,33 @@ async function main() {
     console.log("Ready: 200 synthetic profiles, 100 authors, follow graph; email and interactive login disabled.");
     if (values["profiles-only"]) return;
 
-    const existing = new Set((await prisma.article.findMany({ where: { id: { in: dailySlots(date).map((slot) => slot.id) } }, select: { id: true } })).map((article) => article.id));
+    const existingArticles = await prisma.article.findMany({ where: { id: { in: dailySlots(date).map((slot) => slot.id) } }, select: { id: true, authorId: true, content: true } });
+    if (storage) {
+      for (const article of existingArticles) {
+        const slot = dailySlots(date).find((candidate) => candidate.id === article.id && candidate.profile.id === article.authorId);
+        if (!slot) continue;
+        const doc = storyNode.parse(article.content);
+        const index = doc.content?.findIndex((node) => node.type === "image" && node.attrs?.src === `${storage.publicUrl}/stories/${article.authorId}/${article.id}-diagram.webp`) ?? -1;
+        if (index < 1) continue;
+        const image = doc.content![index];
+        const title = documentText(doc.content![index - 1]);
+        const stages = (image.attrs?.alt ?? "").slice(title.length + 2).split(" → ");
+        if (stages.length !== 5) throw new Error(`Cannot repair diagram metadata for ${article.id}`);
+        await writeNewsroomImages(article.authorId, article.id, { diagram: { title, stages } }, slot.topic, PROFILES.findIndex((profile) => profile.id === article.authorId), storage);
+        image.attrs = { ...image.attrs, src: newsroomImages(article.authorId, article.id, storage).diagram };
+        await prisma.article.update({ where: { id: article.id }, data: { content: doc as Prisma.InputJsonValue, coverImage: newsroomImages(article.authorId, article.id, storage).cover } });
+        console.log(`Repaired versioned media for ${article.id}; engagement preserved.`);
+      }
+    }
+    const existing = new Set(existingArticles.map((article) => article.id));
     const slots = dailySlots(date).filter((slot) => !existing.has(slot.id)).slice(0, limit);
+    const tags = new Map<string, { id: string }>();
+    for (const topic of new Set(slots.map((slot) => slot.topic))) {
+      const slug = slugify(topic);
+      const tag = await prisma.tag.findFirst({ where: { OR: [{ slug }, { name: topic }] }, select: { id: true } }) ??
+        await prisma.tag.upsert({ where: { slug }, create: { name: topic, slug }, update: {}, select: { id: true } });
+      tags.set(topic, tag);
+    }
     console.log(`${date}: ${existing.size}/250 articles already complete; generating ${slots.length}, concurrency ${concurrency}.`);
     const research = new Map<string, Promise<Research>>();
     const loadResearch = (topic: string) => {
@@ -111,7 +137,7 @@ async function main() {
             `Write an ORIGINAL 2800–3500 word educational article for a fictional writer from ${slot.profile.country}, focusing on ${slot.topic}. Date: ${date}. Specific pitch: ${JSON.stringify(pitch)}. Distinguish evidence from interpretation, explain trade-offs and uncertainty, give concrete examples and actionable steps. Use 8–10 sections, EACH with EXACTLY THREE substantial paragraphs of 110–150 words (at least 700 characters each), plus practical bullets. Do not condense to an outline or pad by repeating sentences. Include a topic-specific five-stage high-level architecture/process diagram (for engineering use real components and data flow; for lifestyle use an honest conceptual flow). Diagram stage labels must be COMPLETE concise phrases of 2–6 words, without numbers or trailing punctuation. No political content. No invented numbers, URLs or quotes. Use only the evidence below; numeric sourceIds refer to this source list. Cite at least two different sources. Health and finance: general education only, no treatment or investment advice. Provide six varied, clearly simulated reader reviews about SPECIFIC points from this article, with star ratings and both LIKE and DISLIKE reactions. Include at least one critical review. Title must differ from other pitches.\nResearch: ${evidence.summary}\nSources: ${JSON.stringify(evidence.sources.map((source, index) => ({ id: index + 1, ...source })))}`, false, (draft) => { buildStory(draft, evidence, image, date); });
           if (!hosted) await writeFile(path.join(cache, `${slot.id}.json`), JSON.stringify(draft), { mode: 0o600 });
           const story = buildStory(draft, evidence, image, date);
-          const tag = await prisma.tag.upsert({ where: { slug: slugify(slot.topic) }, update: {}, create: { name: slot.topic, slug: slugify(slot.topic) } });
+          const tag = tags.get(slot.topic)!;
           const authorIndex = PROFILES.findIndex((profile) => profile.id === slot.profile.id);
           await writeNewsroomImages(slot.profile.id, slot.id, draft, slot.topic, authorIndex, storage);
           const readers = [
@@ -140,7 +166,13 @@ async function main() {
     }));
     if (failed) throw new Error("Seed incomplete; see the failed slot above");
     const count = existing.size + completed;
+    const articleIds = dailySlots(date).map((slot) => slot.id);
+    const [reviews, ratings] = await Promise.all([
+      prisma.comment.count({ where: { articleId: { in: articleIds }, body: { startsWith: "[Simulated review" } } }),
+      prisma.articleFeedback.count({ where: { articleId: { in: articleIds }, userId: { in: PROFILES.map((profile) => profile.id) }, rating: { not: null } } }),
+    ]);
     await prisma.newsroomRun.update({ where: { date }, data: { status: count === 250 ? "COMPLETED" : "PARTIAL", articleCount: count, completedAt: count === 250 ? new Date() : null } });
+    console.log(`Engagement audit: ${count} articles, ${reviews} simulated reviews, ${ratings} managed-profile ratings.`);
     console.log(`Complete: ${existing.size + completed}/250 articles for ${date}. Rerunning this date fills remaining slots only.`);
   } catch (cause) {
     if (runStarted) {

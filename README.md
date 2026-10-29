@@ -229,6 +229,11 @@ production uploads to the configured R2 bucket under `stories/<authorId>/`. Both
 uploads must finish before the article and engagement are committed. Ephemeral
 worker files are never used as production article URLs.
 
+The worker bundles fonts for diagram labels. Production media uses versioned
+filenames; a rerun repairs the earlier unversioned newsroom images without
+changing article text, comments, ratings or follows. Existing topic tags are
+reused by name or slug, including legacy tags with noncanonical slugs.
+
 Set `OPENAI_API_KEY` and a model supporting web search and structured outputs
 (`NEWSROOM_OPENAI_MODEL` overrides `OPENAI_MODEL`). This is a paid operation:
 up to ten topic research calls, ten fallback video searches and 250 article calls

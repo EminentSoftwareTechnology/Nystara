@@ -38,8 +38,8 @@ function uploader(fail = false) {
 
 test("production media URLs stay under the managed author's R2 prefix", () => {
   const remote = newsroomImages("author", "article", storage);
-  assert.equal(remote.diagram, "https://media.example.test/stories/author/article-diagram.webp");
-  assert.equal(remote.cover, "https://media.example.test/stories/author/article-cover.webp");
+  assert.equal(remote.diagram, "https://media.example.test/stories/author/article-v2-diagram.webp");
+  assert.equal(remote.cover, "https://media.example.test/stories/author/article-v2-cover.webp");
   assert.equal(newsroomImages("author", "article", null).diagram, "/demo/newsroom/article.webp");
 });
 
@@ -47,6 +47,7 @@ test("both generated images upload as WebP before the R2 client closes", async (
   const client = uploader();
   await client.writeNewsroomImages("author", "article", diagram, "Robotics", 1, storage);
   assert.equal(client.uploads.length, 2);
+  assert.deepEqual(client.uploads.map((upload) => upload.Key).sort(), Object.values(newsroomImages("author", "article", storage)).map((url) => new URL(url).pathname.slice(1)).sort());
   assert.ok(client.uploads.every((upload) => upload.ContentType === "image/webp" && upload.Key.startsWith("stories/author/") && upload.Body.toString("ascii", 8, 12) === "WEBP"));
   assert.equal(client.destroyed(), true);
 });

@@ -9,8 +9,8 @@ type Storage = ReturnType<typeof r2Config>;
 
 export function newsroomImages(authorId: string, articleId: string, storage: Storage) {
   return storage ? {
-    diagram: `${storage.publicUrl}/stories/${authorId}/${articleId}-diagram.webp`,
-    cover: `${storage.publicUrl}/stories/${authorId}/${articleId}-cover.webp`,
+    diagram: `${storage.publicUrl}/stories/${authorId}/${articleId}-v2-diagram.webp`,
+    cover: `${storage.publicUrl}/stories/${authorId}/${articleId}-v2-cover.webp`,
   } : {
     diagram: `/demo/newsroom/${articleId}.webp`,
     cover: `/demo/newsroom/${articleId}-cover.webp`,
@@ -27,7 +27,7 @@ export async function writeNewsroomImages(authorId: string, articleId: string, d
     try {
       const results = await Promise.allSettled(buffers.map((Body, index) => client.send(new PutObjectCommand({
         Bucket: storage.bucket,
-        Key: `stories/${authorId}/${articleId}-${index === 0 ? "diagram" : "cover"}.webp`,
+        Key: `stories/${authorId}/${articleId}-v2-${index === 0 ? "diagram" : "cover"}.webp`,
         Body,
         ContentType: "image/webp",
         CacheControl: "public, max-age=31536000, immutable",
