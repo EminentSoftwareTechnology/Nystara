@@ -970,7 +970,9 @@ runs the same erasure as self-service deletion (LLD-12).
 - **App shell** (`components/layout/AppShell.tsx`): desktop `AppSidebar` with
   Read / Write / Account sections (`components/layout/nav.ts`); touch devices get
   `MobileNav` (Home, Library, Write, Stories, More sheet), padded for the iPhone
-  home indicator.
+  home indicator. Every signed-in page, the story editor included, renders in
+  it. The marketing `Header` is hidden for signed-in readers and in the admin
+  console, so the sidebars (logo at the top) are the only navigation there.
 - **Layouts**: `app/(public)/layout.tsx` (marketing header and footer),
   `app/(auth)/layout.tsx` (centred card).
 - **PWA**: `app/manifest.ts`, light and dark favicons, Apple touch icon.
