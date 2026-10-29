@@ -94,11 +94,9 @@ test("mass assignment cannot change article owner or publish via PATCH", async (
 test("article HTML, RSC, comments and ratings reject anonymous and pending-MFA access", async () => {
   const story = await prisma.article.create({ data: { authorId: userId, title: "Members must sign in", slug: "sign-in-required", content: { text: "restricted article body sentinel" }, contentText: "restricted article body sentinel", readTime: 1, published: true } });
   const path = "/review-user/sign-in-required";
-  const { readerIdentity, VISITOR_COOKIE } = await import("../lib/visitor");
-  const reader = await readerIdentity(undefined);
   const pending = randomUUID();
   await prisma.session.create({ data: { userId, sessionToken: pending, expires: new Date(Date.now() + 3600_000) } });
-  for (const cookie of [undefined, `${VISITOR_COOKIE}=${reader.token}`, `authjs.session-token=${pending}`]) {
+  for (const cookie of [undefined, "reader_session=legacy", `authjs.session-token=${pending}`]) {
     const page = await request(path, cookie);
     assert.equal(page.status, 307);
     assert.equal(new URL(page.headers.get("location")!, base).pathname, "/login");

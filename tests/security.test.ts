@@ -5,7 +5,6 @@ import { SignJWT } from "jose";
 import { readJson, readBody, MAX_BODY_BYTES, PayloadTooLarge, parsePage, isSameOriginWrite } from "../lib/request";
 import { getClientIp } from "../lib/client-ip";
 import { contentSecurityPolicy } from "../lib/csp";
-import { readerIdentity } from "../lib/visitor";
 import { passwordSchema } from "../lib/password";
 import { articleContent, coverImageUrl } from "../lib/article-schema";
 import { rateLimit } from "../lib/rate-limit";
@@ -57,16 +56,8 @@ test("admin tokens require audience, claim types and a session version", async (
   assert.deepEqual(await verifyAdminToken(await createAdminSession(claims)), claims);
   const token = await new SignJWT({ ...claims, version: undefined }).setProtectedHeader({ alg: "HS256" }).setAudience("nystara:admin").setExpirationTime("1h").sign(new TextEncoder().encode(process.env.ADMIN_JWT_SECRET));
   assert.equal(await verifyAdminToken(token), null);
-  const reader = await readerIdentity();
-  assert.equal(await verifyAdminToken(reader.token!), null);
-});
-
-test("reader identities are random, signed and survive a valid cookie", async () => {
-  const first = await readerIdentity();
-  assert.match(first.id, /^anon-/);
-  assert.notEqual((await readerIdentity()).id, first.id);
-  assert.deepEqual(await readerIdentity(first.token!), { id: first.id, token: null });
-  assert.notEqual((await readerIdentity("forged")).id, first.id);
+  const foreign = await new SignJWT({ ...claims }).setProtectedHeader({ alg: "HS256" }).setAudience("nystara:reader").setExpirationTime("1h").sign(new TextEncoder().encode(process.env.ADMIN_JWT_SECRET));
+  assert.equal(await verifyAdminToken(foreign), null);
 });
 
 test("bcrypt passwords reject truncation, including multi-byte characters", () => {

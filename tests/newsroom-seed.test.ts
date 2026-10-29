@@ -10,7 +10,7 @@ test("200 distinct global profiles include 100 authors with 2–3 stable daily s
   for (const key of ["name", "email", "username", "id"] as const) assert.equal(new Set(PROFILES.map((profile) => profile[key])).size, 200);
   assert.equal(new Set(PROFILES.map((profile) => profile.country)).size, 20);
   assert.equal(PROFILES.filter((profile) => profile.author).length, 100);
-  assert.ok(PROFILES.every((profile) => /^[a-z]+\.nystara@gmail\.com$/.test(profile.email)));
+  assert.ok(PROFILES.every((profile) => /^newsroom-user-\d+@newsroom\.nystara\.invalid$/.test(profile.email)));
   const slots = dailySlots("2026-10-28");
   assert.equal(slots.length, 250);
   assert.equal(new Set(slots.map((slot) => slot.id)).size, 250);

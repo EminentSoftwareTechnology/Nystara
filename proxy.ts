@@ -6,7 +6,6 @@ import { rateLimit } from "@/lib/rate-limit";
 
 import { isSameOriginWrite, readBody, PayloadTooLarge, BodyReadTimeout } from "@/lib/request";
 import { contentSecurityPolicy } from "@/lib/csp";
-import { readerIdentity, VISITOR_COOKIE, VISITOR_MAX_AGE } from "@/lib/visitor";
 const MINUTE = 60_000;
 const CREDENTIAL_ENDPOINTS = new Set([
   "/api/admin/login",
@@ -92,15 +91,11 @@ export default async function proxy(req: NextRequest) {
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("Content-Security-Policy", csp);
   requestHeaders.delete("x-reader-id");
-  const isArticle = /^\/[^/]+\/[^/]+$/.test(pathname) && !pathname.startsWith("/admin/") && !pathname.startsWith("/me/");
-  const reader = isArticle ? await readerIdentity(req.cookies.get(VISITOR_COOKIE)?.value) : null;
-  if (reader) requestHeaders.set("x-reader-id", reader.id);
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("Content-Security-Policy", csp);
   response.headers.set("Cache-Control", "private, no-store");
-  if (reader?.token) response.cookies.set(VISITOR_COOKIE, reader.token, {
-    httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: VISITOR_MAX_AGE,
-  });
+  // Articles now require sign-in; expire the retired anonymous reader cookie.
+  if (req.cookies.has("reader_session")) response.cookies.delete("reader_session");
   return response;
 }
 

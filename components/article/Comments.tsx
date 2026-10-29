@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Avatar as ProfileAvatar } from "@/components/layout/Avatar";
 import type { CommentView } from "@/lib/comments";
 
@@ -42,6 +43,7 @@ function CommentForm({
   onPosted: (comment: CommentView) => void;
   onCancel?: () => void;
 }) {
+  const pathname = usePathname();
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -70,7 +72,7 @@ function CommentForm({
     }
   }
 
-  if (!viewer) return <Link href="/login" className="text-sm underline">Sign in to comment or review</Link>;
+  if (!viewer) return <Link href={`/login?next=${encodeURIComponent(pathname)}`} className="text-sm underline">Sign in to comment or review</Link>;
 
   return (
     <form onSubmit={submit} className="space-y-3">

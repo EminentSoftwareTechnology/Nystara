@@ -32,9 +32,9 @@ test("synthetic accounts cannot sign in by email or OAuth; ordinary accounts ret
   for (const synthetic of [true, false]) {
     const signIn = callback(synthetic);
     for (const input of [
-      { user: { email: "amina.nystara@gmail.com" }, email: { verificationRequest: true } },
-      { user: { email: "amina.nystara@gmail.com" }, account: { type: "oauth" } },
-      { user: { email: "amina.nystara@gmail.com" } },
+      { user: { email: "newsroom-user-1@newsroom.nystara.invalid" }, email: { verificationRequest: true } },
+      { user: { email: "newsroom-user-1@newsroom.nystara.invalid" }, account: { type: "oauth" } },
+      { user: { email: "newsroom-user-1@newsroom.nystara.invalid" } },
     ]) assert.equal(await signIn(input), !synthetic);
   }
 });

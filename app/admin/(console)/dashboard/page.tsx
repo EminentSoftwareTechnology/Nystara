@@ -11,7 +11,7 @@ export default async function DashboardPage() {
   if (!session) redirect("/admin/login");
 
   const [userCount, articleCount, publishedCount, activity] = await Promise.all([
-    prisma.user.count(),
+    prisma.user.count({ where: { isSynthetic: false } }),
     prisma.article.count(),
     prisma.article.count({ where: { published: true } }),
     monthlyActiveUsers(),

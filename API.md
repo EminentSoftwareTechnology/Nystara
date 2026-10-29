@@ -29,7 +29,6 @@ the pieces fit together, see [ARCHITECTURE.md](ARCHITECTURE.md).
 | Caller | Credential | Notes |
 | --- | --- | --- |
 | Reader or writer | Auth.js database session cookie: `authjs.session-token`, or `__Secure-authjs.session-token` when `NEXTAUTH_URL` is HTTPS | A session that still owes a second factor, or whose account has no display name or no second factor, is treated as signed out except where noted |
-| Anonymous reader | `reader_session` cookie (signed, 30 days), set on article pages | Used only by comments and feedback |
 | Admin | `admin_session` cookie (HS256 JWT, 8 hours, `SameSite=Strict`) | Checked against the database on every request |
 
 Below, **session** means a fully set-up reader session, **setup session** means
@@ -181,9 +180,10 @@ story).
 
 ## Comments, reactions and ratings
 
-These accept members and guests. The **voter** is the signed-in user, or the
-anonymous reader from the `reader_session` cookie. With neither:
-`400 { "error": "Reload the page and try again." }`.
+These require a signed-in member; the **voter** is that user. Without one:
+`401`. Public like/dislike counts and the rating average exclude fictional
+newsroom profiles (`isSynthetic`). The retired `reader_session` cookie is no
+longer issued and the proxy deletes it when a browser still sends one.
 
 ### `POST /api/articles/{id}/comments`
 

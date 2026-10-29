@@ -65,7 +65,7 @@ test("default Resend delivery preserves content, unsubscribe headers and provide
 test("synthetic recipients never reach SMTP or Resend", async () => {
   for (const EMAIL_PROVIDER of ["smtp", "resend"]) {
     const client = delivery({ EMAIL_PROVIDER }, false, true);
-    await assert.rejects(client.deliverEmail("amina.nystara@gmail.com", message), /Synthetic accounts/);
+    await assert.rejects(client.deliverEmail("newsroom-user-1@newsroom.nystara.invalid", message), /Synthetic accounts/);
     assert.equal(client.sends.length, 0);
   }
 });

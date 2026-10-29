@@ -29,7 +29,7 @@ export const PROFILES = Array.from({ length: 200 }, (_, index) => {
   return {
     id: `newsroom-user-${index + 1}`,
     name: firstName,
-    email: `${firstName.toLowerCase()}.nystara@gmail.com`,
+    email: `newsroom-user-${index + 1}@newsroom.nystara.invalid`,
     username: `demo-${firstName.toLowerCase()}`,
     country,
     author: index < 100,

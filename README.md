@@ -33,8 +33,7 @@ admin console manages users and articles.
 - **Soft paywall**: members-only stories are free for 5 reads per reader per
   rolling 30 days. After that, the server sends a 300-word excerpt only. The full
   body never reaches the browser.
-- **Guest participation**: readers without an account can comment (with a name
-  and a Turnstile check) and vote, identified by a signed 30-day reader cookie.
+- **Member participation**: signed-in members can comment, react and rate.
 
 ### Writing
 
@@ -201,8 +200,8 @@ npm run db:seed:newsroom
 ```
 
 The newsroom has 100 publishing authors and 100 readers from 20 countries, with
-unique `{firstname}.nystara@gmail.com` profile addresses. These are fictional
-identifiers, not provisioned Gmail mailboxes. `isSynthetic` blocks interactive
+unique `newsroom-user-{n}@newsroom.nystara.invalid` addresses. The reserved
+`.invalid` domain guarantees they never belong to a real person. `isSynthetic` blocks interactive
 sign-in and all outbound email. OpenAI generates articles and reviews; it does
 not authenticate users. The seed writes through the encrypted application client.
 Every generated article and review discloses its AI/simulated origin. Existing
