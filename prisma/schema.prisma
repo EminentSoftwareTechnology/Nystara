@@ -409,3 +409,30 @@ model Subscriber {
 
   @@index([frequency, confirmedAt])
 }
+
+enum NewsroomRunStatus {
+  RUNNING
+  PARTIAL
+  COMPLETED
+  FAILED
+}
+
+model NewsroomRun {
+  date         String            @id
+  status       NewsroomRunStatus  @default(RUNNING)
+  startedAt    DateTime           @default(now())
+  scheduledAt  DateTime?
+  completedAt  DateTime?
+  articleCount Int               @default(0)
+  lastError    String?
+  research     NewsroomResearch[]
+}
+
+model NewsroomResearch {
+  date  String
+  topic String
+  data  Json
+  run   NewsroomRun @relation(fields: [date], references: [date], onDelete: Cascade)
+
+  @@id([date, topic])
+}

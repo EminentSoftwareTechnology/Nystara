@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { assertLocalEnvironment, dailySlots, londonRunDate, PROFILES, seedDate } from "../prisma/newsroom/config";
+import { newsroomEnvironment, dailySlots, londonRunDate, PROFILES, seedDate } from "../prisma/newsroom/config";
 import { buildStory, diagramSvg, type Draft, type Research } from "../prisma/newsroom/content";
 import { researchSources } from "../prisma/newsroom/openai";
 import { isOwnedProfileImage, isStorageImage } from "../lib/storage-url";
@@ -19,11 +19,24 @@ test("200 distinct global profiles include 100 authors with 2–3 stable daily s
   assert.ok(!dailySlots("2026-10-27").some((slot) => slots.some((other) => slot.id === other.id)));
 });
 
-test("the seed refuses production, remote databases and invalid/future dates", () => {
-  for (const DATABASE_URL of ["postgresql://localhost/db", "postgresql://127.0.0.1/db", "postgresql://[::1]/db"]) assert.doesNotThrow(() => assertLocalEnvironment({ DATABASE_URL }));
-  assert.throws(() => assertLocalEnvironment({ DATABASE_URL: "postgresql://example.test/db" }));
-  assert.throws(() => assertLocalEnvironment({ NODE_ENV: "production", DATABASE_URL: "postgresql://localhost/db" }));
+test("hosted and production jobs require explicit enablement; local seeds still work", () => {
+  for (const DATABASE_URL of ["postgresql://localhost/db", "postgresql://127.0.0.1/db", "postgresql://[::1]/db"]) assert.deepEqual(newsroomEnvironment({ DATABASE_URL }), { hosted: false });
+  for (const env of [{ DATABASE_URL: "postgresql://example.test/db" }, { NODE_ENV: "production", DATABASE_URL: "postgresql://localhost/db" }]) {
+    assert.throws(() => newsroomEnvironment(env), /NEWSROOM_ENABLED/);
+    assert.deepEqual(newsroomEnvironment({ ...env, NEWSROOM_ENABLED: "1" }), { hosted: true });
+  }
+  assert.throws(() => newsroomEnvironment({ DATABASE_URL: "https://example.test" }), /PostgreSQL/);
   for (const date of ["2026-02-30", "../x", "2099-01-01"]) assert.throws(() => seedDate(date));
+});
+
+test("each author covers different daily topics and rotates them on subsequent days", () => {
+  const today = dailySlots("2026-10-28");
+  const tomorrow = dailySlots("2026-10-29");
+  for (const author of PROFILES.slice(0, 100)) {
+    const slots = today.filter((slot) => slot.profile.id === author.id);
+    assert.equal(new Set(slots.map((slot) => slot.topic)).size, slots.length);
+    assert.notEqual(slots[0].topic, tomorrow.find((slot) => slot.profile.id === author.id)?.topic);
+  }
 });
 
 test("daily scheduling follows London daylight saving rather than the machine timezone", () => {
@@ -53,7 +66,8 @@ const research: Research = { summary: "Evidence", pitches: [], researchedAt: "20
 test("long stories contain disclosure, diagrams, semantic lists, video and linked sources", () => {
   const story = buildStory(draft, research, "/demo/newsroom/test.webp", "2026-10-28");
   assert.ok(story.readTime >= 10);
-  assert.match(story.contentText, /fictional local test data/);
+  assert.match(story.contentText, /fictional AI-managed author/);
+  assert.match(story.contentText, /engagement from these profiles are simulated/);
   for (const type of ["image", "video", "bulletList", "heading"]) assert.ok(story.content.content?.some((node) => node.type === type));
   assert.match(JSON.stringify(story.content), /https:\/\/example.test\/a/);
   assert.throws(() => buildStory({ ...draft, sections: [] }, research, "/demo/newsroom/test.webp", "2026-10-28"), /2000/);
