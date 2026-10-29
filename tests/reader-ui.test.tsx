@@ -10,7 +10,7 @@ const noop = () => undefined;
 test("editor ribbon renders Word-style tabs, font tools and the styles gallery in the chosen theme", () => {
   const html = renderToStaticMarkup(
     <Ribbon editor={null} disabled={false} uploading={false} theme="bold" onTheme={noop} onInsertImage={noop}
-      onUploadCover={noop} onToggleVideo={noop} onToggleLink={noop} videoOpen={false} alt="" onAlt={noop} />,
+      onUploadCover={noop} onToggleVideo={noop} onToggleLink={noop} videoOpen={false} alt="" onAlt={noop} pro />,
   );
   for (const label of ["home", "insert", "design", "Increase font size", "Numbering", "Heading 1", "Styles"])
     assert.ok(html.includes(label), label);

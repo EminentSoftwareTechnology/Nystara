@@ -1,3 +1,5 @@
+import ProBadge from "@/components/billing/ProBadge";
+import { hasPremiumAccess } from "@/lib/premium";
 import { publishDueStories } from "@/lib/story-status";
 import FollowButton from "@/components/social/FollowButton";
 import { notFound } from "next/navigation";
@@ -28,6 +30,7 @@ export default async function ProfilePage({ params }: Props) {
         avatarUrl: true,
         image: true,
         createdAt: true,
+        subscription: { select: { status: true, currentPeriodEnd: true } },
         _count: { select: { followers: true, following: true } },
         articles: {
           where: { published: true, unlisted: false },
@@ -89,6 +92,9 @@ export default async function ProfilePage({ params }: Props) {
           <div className="min-w-0 flex-1">
             <h1 className="font-display text-3xl font-medium tracking-tight wrap-anywhere sm:text-4xl">
               {displayName}
+              {hasPremiumAccess(profileUser.subscription) && (
+                <ProBadge className="ml-3 align-middle text-xs" />
+              )}
             </h1>
             {profileUser.name && profileUser.username && (
               <p className="mt-1 truncate text-sm text-muted">

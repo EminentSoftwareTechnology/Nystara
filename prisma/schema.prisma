@@ -227,6 +227,23 @@ model Subscription {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+/// Singleton row (id "site") holding platform switches that admins change at runtime.
+model SiteSetting {
+  id         String   @id @default("site")
+  /// When false, Pro is not on sale and every signed-in member gets Pro features.
+  proEnabled Boolean  @default(false)
+  updatedAt  DateTime @updatedAt
+}
+
+/// Stripe webhook event ids already processed, so a replayed delivery is a no-op.
+model StripeEvent {
+  id        String   @id
+  type      String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 enum SubStatus {
   ACTIVE
   PAST_DUE

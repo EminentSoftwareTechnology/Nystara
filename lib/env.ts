@@ -26,6 +26,7 @@ const optionalEnvVars = [
   "ADMIN_PASSWORD",
   "STRIPE_SECRET_KEY",
   "STRIPE_WEBHOOK_SECRET",
+  "STRIPE_PRO_PRICE_ID",
   "BLOB_READ_WRITE_TOKEN",
   "CLAMAV_HOST",
 ] as const;

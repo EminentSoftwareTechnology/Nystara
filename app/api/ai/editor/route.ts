@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isSameOriginWrite, readJson } from "@/lib/request";
 import { rateLimit } from "@/lib/rate-limit";
-import { hasPremiumAccess } from "@/lib/premium";
+import { AI_DAILY_LIMIT, getPlan } from "@/lib/pro";
 import { responseText } from "@/lib/ai-editor";
 import { aiAttachmentSchema, aiChatSchema, attachmentInputs, chatHistoryInputs } from "@/lib/ai-chat";
 import { z } from "zod";
@@ -35,10 +35,7 @@ export async function POST(req: Request) {
   if (!isSameOriginWrite(req)) return NextResponse.json({ error: "Invalid origin." }, { status: 403 });
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Sign in to use the AI editor." }, { status: 401 });
-  if (process.env.NODE_ENV !== "development") {
-    const sub = await prisma.subscription.findUnique({ where: { userId: session.user.id }, select: { status: true, currentPeriodEnd: true } });
-    if (!hasPremiumAccess(sub)) return NextResponse.json({ error: "An active premium membership is required." }, { status: 403 });
-  }
+  if (!(await getPlan(session.user.id)).pro) return NextResponse.json({ error: "The AI editor is part of Nystara Pro." }, { status: 403 });
   const apiKey = process.env.OPENAI_API_KEY ?? process.env.Openai_API_Key ?? process.env["Openai_API-Key"];
   if (!apiKey) return NextResponse.json({ error: "The AI editor is not configured yet." }, { status: 503 });
   const input = aiChatSchema.safeParse(await readJson(req));
@@ -47,8 +44,8 @@ export async function POST(req: Request) {
   const conversation = conversationId ? await prisma.aiConversation.findFirst({ where: { id: conversationId, userId: session.user.id }, include: { messages: { orderBy: { createdAt: "desc" }, take: 100 } } }) : null;
   if (conversationId && !conversation) return NextResponse.json({ error: "Conversation not found." }, { status: 404 });
   if (conversation && conversation.messages.length >= 100) return NextResponse.json({ error: "This conversation is full. Start a new chat to continue." }, { status: 400 });
-  const quota = await rateLimit(`ai-editor:${session.user.id}`, 30, 86400_000);
-  if (!quota.ok) return NextResponse.json({ error: "You have reached the daily limit of 30 AI requests." }, { status: 429, headers: { "Retry-After": String(quota.retryAfter) } });
+  const quota = await rateLimit(`ai-editor:${session.user.id}`, AI_DAILY_LIMIT, 86400_000);
+  if (!quota.ok) return NextResponse.json({ error: `You have reached the daily limit of ${AI_DAILY_LIMIT} AI requests.` }, { status: 429, headers: { "Retry-After": String(quota.retryAfter) } });
   const lock = await rateLimit(`ai-editor-inflight:${session.user.id}`, 1, 15_000);
   if (!lock.ok) return NextResponse.json({ error: "Please wait a few seconds before sending another message." }, { status: 429, headers: { "Retry-After": String(lock.retryAfter) } });
   try {

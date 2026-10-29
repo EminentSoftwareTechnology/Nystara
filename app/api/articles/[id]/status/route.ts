@@ -4,6 +4,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { readJson } from "@/lib/request";
+import { getPlan } from "@/lib/pro";
 
 const schema = z.discriminatedUnion("action", [
   z.object({ action: z.enum(["draft", "publish", "unlist", "submit"]) }),
@@ -22,6 +23,11 @@ export async function POST(
     return NextResponse.json(
       { error: "Choose a valid story action." },
       { status: 400 },
+    );
+  if (parsed.data.action === "schedule" && !(await getPlan(session.user.id)).pro)
+    return NextResponse.json(
+      { error: "Scheduled publishing is part of Nystara Pro." },
+      { status: 403 },
     );
   const { id } = await params;
   const article = await prisma.article.findFirst({

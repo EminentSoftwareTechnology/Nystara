@@ -21,7 +21,10 @@ export default async function SettingsPage() {
           Choose how you appear to readers.
         </p>
         <ProfileSettings user={{ ...user, avatarUrl: user.avatarUrl ?? user.image }} />
-        <Link href="/settings/notifications" className="mt-8 inline-block text-sm underline">Email preferences and unsubscribe</Link>
+        <div className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+          <Link href="/settings/notifications" className="underline">Email preferences and unsubscribe</Link>
+          <Link href="/settings/billing" className="underline">Plan and billing</Link>
+        </div>
       </div>
     </AppShell>
   );

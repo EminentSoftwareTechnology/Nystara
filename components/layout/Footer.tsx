@@ -11,6 +11,7 @@ const COLUMNS = [
       { href: "/", label: "Home" },
       { href: "/why-blog", label: "Why blog" },
       { href: "/features", label: "Features" },
+      { href: "/pricing", label: "Pricing" },
       { href: "/new-story", label: "Write a story" },
     ],
   },

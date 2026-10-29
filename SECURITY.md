@@ -65,12 +65,17 @@ explains the flows in detail.
   available.
 - Passwords are 12+ characters and at most 72 UTF-8 bytes (bcrypt's limit).
 - Admins cannot remove their own admin role or delete their own account.
+- Launching or withdrawing Pro (`PUT /api/admin/billing`) is admin-only, refused
+  until Stripe is fully configured, and audited as `pro_plan_change`.
 
 ### Request handling (`proxy.ts`)
 
 - **CSRF**: every API write must carry an `Origin` equal to the origin of
   `NEXTAUTH_URL`, and `Sec-Fetch-Site` must not be `cross-site`. Forwarded host
-  headers are never trusted.
+  headers are never trusted. The single exemption is `POST /api/stripe/webhook`
+  (listed in `SIGNED_WEBHOOKS`), which Stripe calls without an `Origin`; it
+  verifies the `Stripe-Signature` over the raw body instead and keeps the rate
+  and body limits.
 - **Rate limits**: atomic Redis counters keyed by HMAC-SHA256, so Redis holds no
   raw identifiers. Production denies limited traffic when Redis is missing or
   unreachable. Tiers: 10/min for credential endpoints, 60/min for writes,
@@ -111,7 +116,7 @@ explains the flows in detail.
   user-chosen URL.
 - **AI editor** sends messages and attachments only to the OpenAI Responses API
   with `store: false`, a 60-second timeout and a 3,000-token output cap, after
-  checking premium access on every request (skipped only in development).
+  checking Pro access on every request (`lib/pro.ts`).
   Attachments are limited to 3 allow-listed types totalling 500 KB and are
   framed as source material, not instructions. Conversations are owner-scoped,
   stored in the database, deleted on account erasure and included in the export.
@@ -125,6 +130,24 @@ explains the flows in detail.
   out of feeds, topic pages and discovery.
 - **Turnstile verification** has a 5-second timeout; production rejects missing
   or documented test keys.
+
+### Billing (Stripe)
+
+- Payment details are entered only on Stripe-hosted Checkout and the Billing
+  Portal; Nystara never receives card data. The app stores only the Stripe
+  customer id, subscription id, price id, status and period end.
+- Pro access is decided on the server for every request (`getPlan()`); page
+  controls only reflect it. Pro themes, scheduling and the AI editor are refused
+  with `403` by their APIs, not just hidden.
+- The webhook trusts nothing in the event body except its id and type: after the
+  signature check it re-reads the subscription from Stripe, and it maps the
+  subscription to a user only through the stored `stripeCustomerId`. Event ids
+  are de-duplicated in `StripeEvent` in the same transaction as the update.
+- Checkout refuses members who already have a non-canceled subscription, so a
+  failed payment cannot lead to a second, duplicate subscription.
+- Billing endpoints are limited to 10 requests per user per hour.
+- Listening uses the browser's speech engine only; story text is not sent to a
+  server.
 
 ### Privacy
 
@@ -176,8 +199,12 @@ The code cannot do these for you:
   The app limiter is not DDoS protection.
 - Supply secrets only at runtime. `.env` and `.env.local` are git-ignored and must
   stay that way.
-- Run `npm run db:cleanup` daily. It removes reader views older than 30 days and
-  expired sessions, verification tokens and passkey challenges.
+- Run `npm run db:cleanup` daily. It removes reader views older than 30 days,
+  Stripe event ids older than 30 days, and expired sessions, verification tokens
+  and passkey challenges.
+- Before launching Pro, register the webhook endpoint
+  `{NEXTAUTH_URL}/api/stripe/webhook` in Stripe for `checkout.session.completed`
+  and `customer.subscription.*`, and use a restricted Stripe key where possible.
 - Collect audit events from stdout and alert on them.
 - Remember that uploaded images are public, including those in unpublished
   drafts, and that removing an image from a story does not delete it.

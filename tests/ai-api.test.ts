@@ -8,7 +8,7 @@ import * as chat from "../lib/ai-chat";
 import { responseText } from "../lib/ai-editor";
 
 type Handler = (request: Request) => Promise<Response>;
-function handlers(identity: string | null, database: object = {}, globals: Record<string, unknown> = {}) {
+function handlers(identity: string | null, database: object = {}, globals: Record<string, unknown> = {}, pro = true) {
   const exports: Record<string, Handler> = {};
   const source = readFileSync(new URL("../app/api/ai/editor/route.ts", import.meta.url), "utf8");
   const { outputText } = transpileModule(source, { compilerOptions: { module: ModuleKind.CommonJS } });
@@ -18,7 +18,7 @@ function handlers(identity: string | null, database: object = {}, globals: Recor
     "@/lib/prisma": { prisma: database },
     "@/lib/request": { readJson: (request: Request) => request.json(), isSameOriginWrite: (request: Request) => request.headers.get("origin") === "http://localhost:6100" },
     "@/lib/rate-limit": { rateLimit: async () => ({ ok: true }) },
-    "@/lib/premium": { hasPremiumAccess: () => true },
+    "@/lib/pro": { AI_DAILY_LIMIT: 30, getPlan: async () => ({ launched: true, subscribed: pro, pro }) },
     "@/lib/ai-chat": chat,
     "@/lib/ai-editor": { responseText },
   };
@@ -51,6 +51,11 @@ test("GET and POST scope conversations to the authenticated user; delete cannot 
     assert.equal(args.where.userId, "reader");
     assert.equal(args.where.id, "someone-elses-chat");
   }
+});
+
+test("members without Pro are refused before any storage or provider work", async () => {
+  const api = handlers("reader", {}, {}, false);
+  assert.equal((await api.POST(request("POST", { text: "hello" }))).status, 403);
 });
 
 test("invalid AI files are rejected before database/provider work", async () => {

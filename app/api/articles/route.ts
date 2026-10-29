@@ -9,6 +9,7 @@ import { MAX_CONTENT_CHARS, readJson } from "@/lib/request";
 import { articleContent, coverImageUrl } from "@/lib/article-schema";
 import { documentText, storyNode } from "@/lib/story-document";
 import { storyTheme } from "@/lib/story-theme";
+import { getPlan, isProTheme } from "@/lib/pro";
 
 const PAGE_SIZE = 20;
 
@@ -94,6 +95,9 @@ export async function POST(req: NextRequest) {
 
   const { title, subtitle, content, coverImage, memberOnly, theme, tagSlugs } =
     parsed.data;
+  if (isProTheme(theme) && !(await getPlan(session.user.id)).pro) {
+    return NextResponse.json({ error: "This theme is part of Nystara Pro." }, { status: 403 });
+  }
   const doc = storyNode.safeParse(content);
   const contentText = doc.success && doc.data.content ? documentText(doc.data) : parsed.data.contentText;
 
