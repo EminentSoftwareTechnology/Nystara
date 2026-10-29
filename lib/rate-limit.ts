@@ -18,12 +18,16 @@ const state = globalThis as typeof globalThis & {
 async function redisClient() {
   if (!state.rateLimitRedis) {
     const client = makeClient();
-    client.on("error", () => undefined);
-    client.on("end", () => { state.rateLimitRedis = undefined; });
-    state.rateLimitRedis = client.connect().then(() => client).catch(() => {
-      state.rateLimitRedis = undefined;
+    const clear = () => {
+      if (state.rateLimitRedis === connection) state.rateLimitRedis = undefined;
+    };
+    client.on("error", clear);
+    client.on("end", clear);
+    const connection = client.connect().then(() => client).catch(() => {
+      clear();
       throw new Error("Rate limiter unavailable");
     });
+    state.rateLimitRedis = connection;
   }
   return state.rateLimitRedis;
 }

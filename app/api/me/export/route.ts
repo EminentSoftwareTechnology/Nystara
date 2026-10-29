@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { rateLimit } from "@/lib/rate-limit";
 
-const sections = ["articles", "comments", "claps", "bookmarks", "following", "followers", "views", "feedback", "readingLists", "readingListItems", "savedLists", "highlights", "topicFollows", "aiConversations", "aiMessages"] as const;
+const sections = ["articles", "comments", "claps", "bookmarks", "following", "followers", "views", "feedback", "readingLists", "readingListItems", "savedLists", "highlights", "topicFollows", "aiConversations", "aiMessages", "activity"] as const;
 const take = 20;
 
 export async function GET(req: NextRequest) {
@@ -41,6 +41,13 @@ export async function GET(req: NextRequest) {
   let rows: object[];
   let keys: string[];
   switch (section) {
+    case "activity": {
+      if (cursor && !/^\d{4}-\d{2}-\d{2}$/.test(cursor)) return NextResponse.json({ error: "Invalid activity cursor" }, { status: 400 });
+      const day = cursor ? new Date(`${cursor}T00:00:00Z`) : null;
+      if (day && (!Number.isFinite(day.getTime()) || day.toISOString().slice(0, 10) !== cursor)) return NextResponse.json({ error: "Invalid activity cursor" }, { status: 400 });
+      const data = await prisma.userActivityDay.findMany({ where: { userId, ...(day ? { day: { gt: day } } : {}) }, take: take + 1, orderBy: { day: "asc" }, select: { day: true } });
+      rows = data; keys = data.map((row) => row.day.toISOString().slice(0, 10)); break;
+    }
     case "articles": {
       const data = await prisma.article.findMany({ where: { authorId: userId, ...byId }, ...options,
         select: { id: true, slug: true, title: true, subtitle: true, content: true, contentText: true, coverImage: true, published: true, memberOnly: true, unlisted: true, scheduledAt: true, submittedAt: true, createdAt: true, updatedAt: true, publishedAt: true, tags: { select: { tag: { select: { slug: true } } } } } });

@@ -3,14 +3,15 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 import { r2Client, r2Config } from "../../lib/r2";
+import { storyStoragePrefix } from "../../lib/storage-url";
 import { coverSvg, diagramSvg, type Draft } from "./content";
 
 type Storage = ReturnType<typeof r2Config>;
 
 export function newsroomImages(authorId: string, articleId: string, storage: Storage) {
   return storage ? {
-    diagram: `${storage.publicUrl}/stories/${authorId}/${articleId}-v2-diagram.webp`,
-    cover: `${storage.publicUrl}/stories/${authorId}/${articleId}-v2-cover.webp`,
+    diagram: `${storage.publicUrl}/${storyStoragePrefix(authorId)}${articleId}-v2-diagram.webp`,
+    cover: `${storage.publicUrl}/${storyStoragePrefix(authorId)}${articleId}-v2-cover.webp`,
   } : {
     diagram: `/demo/newsroom/${articleId}.webp`,
     cover: `/demo/newsroom/${articleId}-cover.webp`,
@@ -27,7 +28,7 @@ export async function writeNewsroomImages(authorId: string, articleId: string, d
     try {
       const results = await Promise.allSettled(buffers.map((Body, index) => client.send(new PutObjectCommand({
         Bucket: storage.bucket,
-        Key: `stories/${authorId}/${articleId}-v2-${index === 0 ? "diagram" : "cover"}.webp`,
+        Key: `${storyStoragePrefix(authorId)}${articleId}-v2-${index === 0 ? "diagram" : "cover"}.webp`,
         Body,
         ContentType: "image/webp",
         CacheControl: "public, max-age=31536000, immutable",

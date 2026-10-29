@@ -20,10 +20,12 @@ function GoogleLogo() {
 /** The CAPTCHA token is checked server-side before Auth.js starts the Google OAuth redirect. */
 export function OAuthButtons({
   verb,
+  next = "/",
   turnstileToken,
   onError,
 }: {
   verb: string;
+  next?: string;
   turnstileToken: string | null;
   onError: (message: string) => void;
 }) {
@@ -42,7 +44,7 @@ export function OAuthButtons({
       onError(data.error ?? "CAPTCHA verification failed.");
       return;
     }
-    await signIn("google", { callbackUrl: "/mfa" });
+    await signIn("google", { callbackUrl: `/mfa?next=${encodeURIComponent(next)}` });
   }
 
   return (

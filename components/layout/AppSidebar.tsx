@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOutAction } from "@/app/actions/auth";
-import { Logo } from "@/components/brand/Logo";
 import { LogoutIcon } from "@/components/icons";
 import { cx } from "@/components/ui";
 import { Avatar } from "./Avatar";
@@ -17,12 +16,9 @@ export default function AppSidebar({ user }: { user: NavUser }) {
   const displayName = user.name ?? user.username ?? "Your account";
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-border bg-page touch:hidden">
-      <div className="flex h-16 shrink-0 items-center px-5">
-        <Logo wordmark="h-8" />
-      </div>
+    <aside className="fixed bottom-0 left-0 top-[4.25rem] z-40 flex w-64 flex-col border-r border-border bg-page touch:hidden">
 
-      <nav aria-label="Workspace" className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-3 pb-6 pt-2">
+      <nav aria-label="Workspace" className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-3 pb-6 pt-6">
         {sections.map((section) => (
           <div key={section.title}>
             <p className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{section.title}</p>

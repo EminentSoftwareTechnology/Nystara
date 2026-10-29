@@ -83,8 +83,8 @@ for (const scenario of [
       "@/lib/email/notifications": notifications(notices),
     });
     const response = await handler(new Request("http://localhost"), { params: Promise.resolve({ id: "story" }) });
-    assert.equal(response.status, 201);
-    assert.deepEqual(notices.map(({ userId, event }) => [userId, event]), scenario.expected);
+    assert.equal(response.status, scenario.writer ? 201 : 401);
+    assert.deepEqual(notices.map(({ userId, event }) => [userId, event]), scenario.writer ? scenario.expected : []);
     assert.ok(!JSON.stringify(notices).includes(input.body));
     for (const notice of notices) assert.equal(Reflect.get(notice.options as object, "actionPath"), "/writer/the-story");
   });

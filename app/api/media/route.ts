@@ -8,6 +8,7 @@ import { readJson } from "@/lib/request";
 import { rateLimit } from "@/lib/rate-limit";
 import { imageType } from "@/lib/image-type";
 import { r2Config, r2Client } from "@/lib/r2";
+import { storyStoragePrefix } from "@/lib/storage-url";
 import { clamavConfig, clamavScan } from "@/lib/clamav";
 import { InvalidImage, toWebp } from "@/lib/image-pipeline";
 
@@ -75,7 +76,7 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
-  const key = `stories/${userId}/${randomUUID()}.webp`;
+  const key = `${storyStoragePrefix(userId)}${randomUUID()}.webp`;
   const client = r2Client(config);
   try {
     await client.send(

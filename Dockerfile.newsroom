@@ -6,7 +6,7 @@ RUN npm ci --omit=dev
 COPY prisma ./prisma
 COPY prisma.config.ts tsconfig.json ./
 COPY lib ./lib
-COPY scripts/daily-newsroom.mts ./scripts/daily-newsroom.mts
+COPY scripts/daily-newsroom.mts scripts/cleanup.ts ./scripts/
 RUN npx prisma generate
 ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 newsroom && chown -R newsroom:nodejs /app

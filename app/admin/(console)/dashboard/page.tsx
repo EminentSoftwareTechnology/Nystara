@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { getVerifiedAdminSession } from "@/lib/admin-auth";
 import { redirect } from "next/navigation";
+import { monthlyActiveUsers } from "@/lib/admin-activity";
+import { BarChart } from "@/components/analytics/Charts";
 
 export const dynamic = "force-dynamic";
 
@@ -8,10 +10,11 @@ export default async function DashboardPage() {
   const session = await getVerifiedAdminSession();
   if (!session) redirect("/admin/login");
 
-  const [userCount, articleCount, publishedCount] = await Promise.all([
+  const [userCount, articleCount, publishedCount, activity] = await Promise.all([
     prisma.user.count(),
     prisma.article.count(),
     prisma.article.count({ where: { published: true } }),
+    monthlyActiveUsers(),
   ]);
 
   const recentArticles = await prisma.article.findMany({
@@ -33,7 +36,7 @@ export default async function DashboardPage() {
   });
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-8">
       <div className="mb-8">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           Dashboard
@@ -44,11 +47,12 @@ export default async function DashboardPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
         {[
           { label: "Total users", value: userCount },
           { label: "Total articles", value: articleCount },
           { label: "Published articles", value: publishedCount },
+          { label: "Monthly active users", value: activity[11].value },
         ].map((stat) => (
           <div
             key={stat.label}
@@ -63,6 +67,14 @@ export default async function DashboardPage() {
           </div>
         ))}
       </div>
+
+      <section aria-label="Monthly activity" className="mb-10">
+        <p className="mb-4 text-sm text-muted">
+          Unique signed-in users active in each calendar month (UTC). Excludes fictional newsroom profiles.
+          Collection starts with this release; earlier months have no recorded activity.
+        </p>
+        <BarChart title="Monthly active users · last 12 months" points={activity} />
+      </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent articles */}

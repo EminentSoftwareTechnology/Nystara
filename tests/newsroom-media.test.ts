@@ -5,6 +5,7 @@ import { test } from "node:test";
 import { runInNewContext } from "node:vm";
 import { ModuleKind, transpileModule } from "typescript";
 import * as content from "../prisma/newsroom/content";
+import * as storageUrls from "../lib/storage-url";
 import { newsroomImages, type writeNewsroomImages } from "../prisma/newsroom/media";
 
 const storage = { account: "a".repeat(32), accessKeyId: "test-only", secretAccessKey: "test-only", bucket: "test", publicUrl: "https://media.example.test" };
@@ -21,6 +22,7 @@ function uploader(fail = false) {
   const exports = {};
   const imports: Record<string, unknown> = {
     "./content": content,
+    "../../lib/storage-url": storageUrls,
     "@aws-sdk/client-s3": { PutObjectCommand: class { constructor(readonly input: Upload) {} } },
     "../../lib/r2": { r2Client: () => ({
       send: async (command: { input: Upload }) => {

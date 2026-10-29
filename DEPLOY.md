@@ -30,7 +30,7 @@ before your first launch. They list operator duties the code cannot do for you.
 | --- | --- | --- |
 | PostgreSQL 16 | Primary data store | Private network, TLS and authentication |
 | Redis 7 | Rate limits shared across replicas | **Required in production**: without it, limited requests are denied. Use a dedicated instance with bounded memory and `maxmemory-policy noeviction` |
-| Cloudflare Turnstile | Bot checks on sign-in, admin login and guest comments | Real keys; the documented test keys are rejected in production |
+| Cloudflare Turnstile | Bot checks on sign-in and admin login | Real keys; the documented test keys are rejected in production |
 | Resend | Sign-in emails | Verify the sending domain (SPF/DKIM). Set `EMAIL_FROM` to a verified sender; the default is `Nystara <noreply@nystara.com>` |
 | Google and/or GitHub OAuth apps | Optional social sign-in | Callback URLs: `{NEXTAUTH_URL}/api/auth/callback/google` and `/github` |
 | Cloudflare R2 | Image uploads | Bucket-scoped Object Read & Write token; public custom domain or `r2.dev` URL |
@@ -83,6 +83,7 @@ staging/production; set `RESEND_API_KEY` in each environment. Development-only:
 ## Google and GitHub sign-in
 
 Both providers are already integrated through Auth.js in `auth.config.ts`.
+The login and signup interfaces offer Google; the legacy GitHub button has been removed.
 Credentials alone are insufficient: register the exact callback for the app's
 `NEXTAUTH_URL` in the provider console. These are the current local and staging
 values:
@@ -174,6 +175,58 @@ enable automatic email-based linking simply to bypass this protection. See
 
 Leave `TRUST_PROXY_IP=0` until you have confirmed how Railway's edge sets
 `X-Forwarded-For` for your service and that the app cannot be reached directly.
+
+### Separate production environment
+
+Keep production PostgreSQL and Redis on their own persistent volumes. Copy staging's
+provider settings, but point database/cache references at the production services and
+generate fresh `NEXTAUTH_SECRET`, `ADMIN_JWT_SECRET`, `MFA_ENCRYPTION_KEY` and
+`DATA_ENCRYPTION_KEY` before creating production accounts. This setup starts with an
+empty database; it does not copy staging users or sessions. Preserve the new encryption
+keys with the production backups.
+
+Ensure Redis can write its mounted `/data` directory as the `redis` user before
+starting persistence. Verify a background save succeeds; otherwise Redis can reject
+rate-limit writes. Apply startup-command changes through a fresh configuration
+deployment: redeploying a historical Railway deployment can reuse its old command.
+
+When sharing staging's R2 bucket, set `R2_KEY_PREFIX=production/` on the production
+web app and newsroom worker before uploading anything. Images, ownership validation
+and account erasure use this isolated directory. Leave staging's prefix unchanged.
+Changing the prefix after publishing requires a separate media migration.
+
+Attach the intended hostname to the production web service in Railway and add the
+exact DNS records returned by Railway. Set `NEXTAUTH_URL` to its HTTPS origin.
+Register that origin and `/api/auth/callback/google` with the existing Google OAuth
+client, and allow the hostname in the existing Turnstile widget. Copied credentials
+alone do not register a new hostname. DNS/certificate verification must finish before
+testing authentication or enrolling passkeys on the final domain.
+
+The separate newsroom worker uses the production app's database, encryption and
+provider variable references. Deploy it with `scripts/deploy-newsroom.sh`, not the
+web service's root Railway config. Enable `NEWSROOM_ENABLED=1` and hourly cron
+`0 * * * *` after the initial production migration; its wrapper publishes only at
+07:00 Europe/London. A profiles-only bootstrap creates the 200 fictional profiles
+without paid article generation. A separate `maintenance-production` service uses
+the same worker image with start command `node --import tsx scripts/cleanup.ts`,
+cron `15 1 * * *` (01:15 UTC daily), restart policy `NEVER`, and the production
+app's database/encryption variable references. It prunes expired sessions, reading
+records and activity dates without generating articles or sending emails.
+
+### Article access and monthly active users
+
+Article pages and engagement APIs require a fully set-up, MFA-verified account.
+The login/signup, Google, email-link and passkey flows preserve the article return
+path. Browsing article titles and discovery lists remains public; article bodies,
+sharing controls, comments, reviews, reactions and ratings require sign-in.
+
+The admin dashboard counts unique real users with foreground signed-in activity
+in each UTC calendar month, including the current month and eleven previous months.
+Activity collection starts at deployment; historical zeroes do not represent
+measured inactivity before this release. A user is stored at most once per UTC day;
+the endpoint derives identity and date on the server. No activity cookie, IP or
+page path is stored. Fictional profiles do not count. Activity dates are included in
+user export, cascade on account deletion, and are pruned by `npm run db:cleanup`.
 
 ---
 

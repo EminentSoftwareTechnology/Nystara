@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { readJson } from "@/lib/request";
 import { rateLimit } from "@/lib/rate-limit";
-import { verifyTurnstile } from "@/lib/turnstile";
 import { currentVoter } from "@/lib/engagement";
 import { commentInput, commentSelect, toCommentView } from "@/lib/comments";
 
@@ -13,10 +12,10 @@ export async function POST(
 ) {
   const { id } = await params;
   const voter = await currentVoter();
-  if (!voter)
+  if (!voter?.userId)
     return NextResponse.json(
-      { error: "Reload the page and try again." },
-      { status: 400 },
+      { error: "Sign in to comment or review this article." },
+      { status: 401 },
     );
   const input = commentInput.safeParse(await readJson(req));
   if (!input.success)
@@ -24,19 +23,7 @@ export async function POST(
       { error: input.error.issues[0]?.message ?? "Invalid comment." },
       { status: 400 },
     );
-  const { body, guestName, parentId, turnstileToken } = input.data;
-  if (!voter.userId) {
-    if (!guestName)
-      return NextResponse.json(
-        { error: "Add your name to comment." },
-        { status: 400 },
-      );
-    if (!turnstileToken || !(await verifyTurnstile(turnstileToken)))
-      return NextResponse.json(
-        { error: "Complete the verification and try again." },
-        { status: 400 },
-      );
-  }
+  const { body, parentId } = input.data;
   const quota = await rateLimit(`comment:${voter.voterId}`, 10, 3600_000);
   if (!quota.ok)
     return NextResponse.json(
@@ -71,7 +58,7 @@ export async function POST(
       articleId: id,
       parentId: parentId ?? null,
       authorId: voter.userId,
-      guestName: voter.userId ? null : guestName,
+      guestName: null,
     },
     select: commentSelect,
   });

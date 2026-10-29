@@ -1,24 +1,19 @@
-import { cookies, headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { VISITOR_COOKIE, verifiedReaderId } from "@/lib/visitor";
 
 export type Voter = { voterId: string; userId: string | null };
 
-/** The signed-in user, or the anonymous reader from the signed reader cookie. */
+/** Only a completed, MFA-verified user session may engage with a story. */
 export async function currentVoter(): Promise<Voter | null> {
   const session = await auth();
   if (session?.user?.id) return { voterId: session.user.id, userId: session.user.id };
-  const token = (await cookies()).get(VISITOR_COOKIE)?.value;
-  const readerId = token ? await verifiedReaderId(token) : null;
-  return readerId ? { voterId: readerId, userId: null } : null;
+  return null;
 }
 
-/** Same as currentVoter, for article pages where the proxy has already resolved the reader id. */
+/** Article pages pass the server-verified user id. */
 export async function pageVoter(userId: string | undefined): Promise<Voter | null> {
   if (userId) return { voterId: userId, userId };
-  const readerId = (await headers()).get("x-reader-id");
-  return readerId ? { voterId: readerId, userId: null } : null;
+  return null;
 }
 
 function startOfUtcDay(now = new Date()) {

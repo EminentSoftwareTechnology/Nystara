@@ -3,6 +3,9 @@ import { Geist, Geist_Mono, Newsreader, Playfair_Display, Source_Serif_4 } from 
 import { cookies } from "next/headers";
 import { isExplicitTheme } from "@/lib/theme";
 import "./globals.css";
+import { auth } from "@/lib/auth";
+import Header from "@/components/layout/Header";
+import ActivityTracker from "@/components/analytics/ActivityTracker";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -64,6 +67,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const signedIn = Boolean((await auth())?.user?.id);
   const themeCookie = (await cookies()).get("theme")?.value;
   // "system" or unset: no attribute, CSS media queries follow the OS.
   const theme = isExplicitTheme(themeCookie) ? themeCookie : undefined;
@@ -74,7 +78,11 @@ export default async function RootLayout({
       data-theme={theme}
       className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable} ${playfair.variable} ${sourceSerif.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col font-sans">{children}</body>
+      <body className="min-h-full flex flex-col font-sans">
+        <Header signedIn={signedIn} />
+        {signedIn && <ActivityTracker />}
+        {children}
+      </body>
     </html>
   );
 }

@@ -1,4 +1,3 @@
-import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { auth } from "@/lib/auth";
 import AppShell from "@/components/layout/AppShell";
@@ -14,7 +13,6 @@ export default async function PublicLayout({ children }: { children: React.React
       >
         Skip to content
       </a>
-      <Header signedIn={Boolean(session?.user?.id)} />
       <main id="main" className="flex flex-1 flex-col">
         {children}
       </main>
