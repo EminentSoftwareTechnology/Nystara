@@ -10,7 +10,7 @@ const TurnstileWidget = dynamic(() => import("@/components/auth/TurnstileWidget"
 
 type State = "idle" | "loading" | "sent" | "error" | "account_exists";
 
-export default function SignupForm({ initialEmail }: { initialEmail: string }) {
+export default function SignupForm({ initialEmail, next }: { initialEmail: string; next: string }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState(initialEmail);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
@@ -36,7 +36,7 @@ export default function SignupForm({ initialEmail }: { initialEmail: string }) {
     const res = await fetch("/api/auth/magic-link", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ intent: "signup", name, email, turnstileToken }),
+      body: JSON.stringify({ intent: "signup", name, email, turnstileToken, next }),
     });
     if (res.ok) {
       setState("sent");
@@ -57,13 +57,13 @@ export default function SignupForm({ initialEmail }: { initialEmail: string }) {
         <h1 className="font-display text-3xl tracking-tight sm:text-4xl">Create your account</h1>
         <p className="mt-2 text-sm text-muted">
           Already have one?{" "}
-          <Link href="/login" className="font-medium text-foreground underline underline-offset-4">
+          <Link href={`/login?next=${encodeURIComponent(next)}`} className="font-medium text-foreground underline underline-offset-4">
             Sign in
           </Link>
         </p>
       </div>
 
-      <OAuthButtons verb="Sign up" turnstileToken={turnstileToken} onError={(m) => fail(m)} />
+      <OAuthButtons next={next} verb="Sign up" turnstileToken={turnstileToken} onError={(m) => fail(m)} />
 
       <OrDivider label="or sign up with email" />
 
@@ -105,7 +105,7 @@ export default function SignupForm({ initialEmail }: { initialEmail: string }) {
             <p>
               <strong>{email}</strong> already has a Nystara account.
             </p>
-            <Link href={`/login?email=${encodeURIComponent(email)}`} className={buttonClass("primary", "sm", "self-start")}>
+            <Link href={`/login?email=${encodeURIComponent(email)}&next=${encodeURIComponent(next)}`} className={buttonClass("primary", "sm", "self-start")}>
               Sign in instead
             </Link>
           </div>

@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import TurnstileWidget from "@/components/auth/TurnstileWidget";
 import { Avatar as ProfileAvatar } from "@/components/layout/Avatar";
 import type { CommentView } from "@/lib/comments";
 
@@ -12,19 +11,8 @@ type Props = {
   viewer: { name: string | null; avatarUrl?: string | null } | null;
 };
 
-const NAME_KEY = "nystara:comment-name";
 const field =
   "w-full rounded-xl border border-border bg-page px-3.5 py-2.5 text-sm outline-none focus:border-foreground";
-
-const noSubscription = () => () => undefined;
-
-function savedName() {
-  try {
-    return localStorage.getItem(NAME_KEY) ?? "";
-  } catch {
-    return "";
-  }
-}
 
 function relativeTime(iso: string) {
   const seconds = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
@@ -55,21 +43,11 @@ function CommentForm({
   onCancel?: () => void;
 }) {
   const [body, setBody] = useState("");
-  // Remembered guest name, read after hydration; null until the reader edits it.
-  const storedName = useSyncExternalStore(noSubscription, savedName, () => "");
-  const [editedName, setName] = useState<string | null>(null);
-  const name = editedName ?? storedName;
-  const [token, setToken] = useState("");
-  const [widget, setWidget] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (!viewer && !token) {
-      setError("Complete the verification first.");
-      return;
-    }
     setBusy(true);
     setError("");
     try {
@@ -79,51 +57,27 @@ function CommentForm({
         body: JSON.stringify({
           body,
           parentId,
-          ...(viewer ? {} : { guestName: name, turnstileToken: token }),
         }),
       });
       const result = (await response.json()) as CommentView & { error?: string };
       if (!response.ok) throw new Error(result.error ?? "Couldn't post your comment.");
-      if (!viewer)
-        try {
-          localStorage.setItem(NAME_KEY, name.trim());
-        } catch {
-          /* Remembering the name is a convenience only. */
-        }
       setBody("");
       onPosted(result);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Couldn't post your comment.");
     } finally {
-      // Turnstile tokens are single use.
-      setToken("");
-      setWidget((value) => value + 1);
       setBusy(false);
     }
   }
 
+  if (!viewer) return <Link href="/login" className="text-sm underline">Sign in to comment or review</Link>;
+
   return (
     <form onSubmit={submit} className="space-y-3">
-      {viewer ? (
-        <p className="flex items-center gap-2 text-sm text-muted">
-          <ProfileAvatar src={viewer.avatarUrl ?? null} name={viewer.name ?? "Reader"} size={28} />
-          Commenting as <span className="font-medium text-foreground">{viewer.name ?? "you"}</span>
-        </p>
-      ) : (
-        <label className="block text-sm">
-          <span className="mb-1.5 block font-medium">Your name</span>
-          <input
-            required
-            minLength={2}
-            maxLength={50}
-            autoComplete="name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            className={field}
-            placeholder="How should we show your name?"
-          />
-        </label>
-      )}
+      <p className="flex items-center gap-2 text-sm text-muted">
+        <ProfileAvatar src={viewer.avatarUrl ?? null} name={viewer.name ?? "Reader"} size={28} />
+        Commenting as <span className="font-medium text-foreground">{viewer.name ?? "you"}</span>
+      </p>
       <label className="block text-sm">
         <span className="sr-only">{parentId ? "Your reply" : "Your comment"}</span>
         <textarea
@@ -136,17 +90,6 @@ function CommentForm({
           placeholder={parentId ? "Write a reply…" : "What are your thoughts?"}
         />
       </label>
-      {!viewer && (
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <TurnstileWidget key={widget} onSuccess={setToken} onError={() => setToken("")} />
-          <p className="text-xs text-muted">
-            <Link href="/login" className="underline">
-              Sign in
-            </Link>{" "}
-            to comment with your profile.
-          </p>
-        </div>
-      )}
       {error && (
         <p role="alert" className="text-sm text-danger">
           {error}

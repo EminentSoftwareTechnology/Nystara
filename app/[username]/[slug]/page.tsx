@@ -1,7 +1,7 @@
 import { publishDueStories } from "@/lib/story-status";
 import { cache } from "react";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -64,6 +64,7 @@ const loadArticle = cache(async (username: string, slug: string) => {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { username, slug } = await params;
+  if (!(await auth())?.user?.id) return { title: "Sign in to read", robots: { index: false } };
   const article = await loadArticle(username, slug);
   if (!article) return {};
   const description =
@@ -93,11 +94,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ArticlePage({ params }: Props) {
   const { username, slug } = await params;
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) redirect(`/login?next=${encodeURIComponent(`/${encodeURIComponent(username)}/${encodeURIComponent(slug)}`)}`);
   const article = await loadArticle(username, slug);
   if (!article) notFound();
 
-  const session = await auth();
-  const userId = session?.user?.id;
   const voter = await pageVoter(userId);
   if (!voter) notFound();
 
@@ -113,7 +115,7 @@ export default async function ArticlePage({ params }: Props) {
       sub.currentPeriodEnd > new Date();
   }
   if (article.memberOnly && !subscriber) {
-    // Logged-in non-members get the same free quota as anonymous visitors. The check also records the view.
+    // The free quota still applies to signed-in readers without a paid membership.
     const { allowed } = await checkPaywallAccess(voter.voterId, article.id);
     paywalled = !allowed;
   } else {
@@ -158,7 +160,7 @@ export default async function ArticlePage({ params }: Props) {
   const theme = toStoryTheme(article.theme);
 
   return (
-    <AppShell requireAuth={false}>
+    <AppShell>
       <div className="story-theme" data-story-theme={theme}>
         <ArticleHero
           title={article.title}
@@ -171,7 +173,7 @@ export default async function ArticlePage({ params }: Props) {
           tags={article.tags.map(({ tag }) => tag)}
         />
 
-        <div className="mx-auto grid max-w-7xl gap-12 px-4 py-10 sm:px-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:px-6 xl:grid-cols-[minmax(0,1fr)_280px]">
           <article className="mx-auto w-full min-w-0 max-w-[720px] xl:mx-0 xl:max-w-none">
             <div className="mb-8 border-b border-border pb-6">
               <ShareBar url={shareUrl} title={article.title} />

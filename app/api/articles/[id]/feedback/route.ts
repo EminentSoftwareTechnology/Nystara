@@ -19,10 +19,10 @@ export async function PUT(
 ) {
   const { id } = await params;
   const voter = await currentVoter();
-  if (!voter)
+  if (!voter?.userId)
     return NextResponse.json(
-      { error: "Reload the page and try again." },
-      { status: 400 },
+      { error: "Sign in to react or rate this article." },
+      { status: 401 },
     );
   const input = schema.safeParse(await readJson(req));
   if (!input.success)

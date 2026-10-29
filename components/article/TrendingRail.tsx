@@ -15,7 +15,7 @@ export default function TrendingRail({
   today: RankedArticle[];
 }) {
   return (
-    <div className="space-y-6">
+    <div className="w-full max-w-[280px] space-y-6">
       <section aria-labelledby="trending-heading" className="overflow-hidden rounded-2xl border border-border bg-background">
         <h2 id="trending-heading" className="px-4 pb-2 pt-4 text-lg font-bold">
           What&apos;s trending

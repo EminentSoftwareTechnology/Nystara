@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { safeNext } from "@/lib/safe-redirect";
 import { z } from "zod";
 import { signIn } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -11,12 +12,14 @@ const schema = z.discriminatedUnion("intent", [
   z.object({
     intent: z.literal("login"),
     email: z.string().trim().email().max(254),
+    next: z.string().max(2048).optional(),
     turnstileToken: z.string().min(1).max(4096),
   }),
   z.object({
     intent: z.literal("signup"),
     email: z.string().trim().email().max(254),
     name: z.string().trim().min(1).max(100),
+    next: z.string().max(2048).optional(),
     turnstileToken: z.string().min(1).max(4096),
   }),
 ]);
@@ -53,7 +56,8 @@ export async function POST(req: NextRequest) {
 
   // The link lands on /mfa, which asks for a passkey or authenticator before the account can be used. A new
   // account's name rides along in the link so it works even when opened on another device.
-  const redirectTo = input.intent === "signup" ? `/mfa?name=${encodeURIComponent(input.name)}` : "/mfa";
+  const next = encodeURIComponent(safeNext(input.next));
+  const redirectTo = input.intent === "signup" ? `/mfa?name=${encodeURIComponent(input.name)}&next=${next}` : `/mfa?next=${next}`;
   try {
     await signIn(usesResend() ? "resend" : "nodemailer", { email, redirect: false, redirectTo });
   } catch {

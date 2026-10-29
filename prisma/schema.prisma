@@ -43,6 +43,7 @@ model User {
   topicFollows    TopicFollow[]
   aiConversations AiConversation[]
   digest          Subscriber?
+  activityDays    UserActivityDay[]
 
   accounts      Account[]
   sessions      Session[]
@@ -56,6 +57,15 @@ model User {
   subscription  Subscription?
   passkeys      Passkey[]
   recoveryCodes RecoveryCode[]
+}
+
+model UserActivityDay {
+  userId String
+  day    DateTime @db.Date
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, day])
+  @@index([day])
 }
 
 model Article {

@@ -91,6 +91,57 @@ test("mass assignment cannot change article owner or publish via PATCH", async (
   assert.equal(article.published, false);
 });
 
+test("article HTML, RSC, comments and ratings reject anonymous and pending-MFA access", async () => {
+  const story = await prisma.article.create({ data: { authorId: userId, title: "Members must sign in", slug: "sign-in-required", content: { text: "restricted article body sentinel" }, contentText: "restricted article body sentinel", readTime: 1, published: true } });
+  const path = "/review-user/sign-in-required";
+  const { readerIdentity, VISITOR_COOKIE } = await import("../lib/visitor");
+  const reader = await readerIdentity(undefined);
+  const pending = randomUUID();
+  await prisma.session.create({ data: { userId, sessionToken: pending, expires: new Date(Date.now() + 3600_000) } });
+  for (const cookie of [undefined, `${VISITOR_COOKIE}=${reader.token}`, `authjs.session-token=${pending}`]) {
+    const page = await request(path, cookie);
+    assert.equal(page.status, 307);
+    assert.equal(new URL(page.headers.get("location")!, base).pathname, "/login");
+    assert.doesNotMatch(await page.text(), /restricted article body sentinel|Share on Facebook/);
+    const rsc = await fetch(`${base}${path}`, { redirect: "manual", headers: { RSC: "1", ...(cookie ? { cookie } : {}) } });
+    assert.doesNotMatch(await rsc.text(), /restricted article body sentinel/);
+    assert.equal((await request(`/api/articles/${story.id}/comments`, cookie, "POST", { body: "guest review", guestName: "Guest", turnstileToken: "fake" })).status, 401);
+    assert.equal((await request(`/api/articles/${story.id}/feedback`, cookie, "PUT", { reaction: "LIKE", rating: 5 })).status, 401);
+  }
+  const page = await request(path, userCookie);
+  assert.equal(page.status, 200);
+  assert.match(await page.text(), /restricted article body sentinel/);
+  assert.equal((await request(`/api/articles/${story.id}/feedback`, userCookie, "PUT", { reaction: "LIKE", rating: 4 })).status, 200);
+  await prisma.user.update({ where: { id: userId }, data: { activityEmails: false } });
+  assert.equal((await request(`/api/articles/${story.id}/comments`, userCookie, "POST", { body: "Signed-in review" })).status, 201);
+});
+
+test("monthly activity deduplicates users, excludes synthetic profiles and is exported and erased", async () => {
+  const { monthlyActiveUsers } = await import("../lib/admin-activity");
+  assert.equal((await request("/api/me/activity", undefined, "POST")).status, 401);
+  assert.equal((await request("/api/me/activity", userCookie, "POST", { userId: adminId })).status, 204);
+  assert.equal((await request("/api/me/activity", userCookie, "POST")).status, 204);
+  assert.equal(await prisma.userActivityDay.count({ where: { userId } }), 1);
+  assert.equal(await prisma.userActivityDay.count({ where: { userId: adminId } }), 0);
+  const person = await prisma.user.create({ data: { email: `mau-${randomUUID()}@example.test` } });
+  const bot = await prisma.user.create({ data: { email: `bot-${randomUUID()}@example.test`, isSynthetic: true } });
+  createdUsers.push(person.id, bot.id);
+  const now = new Date();
+  const day = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+  const secondDay = new Date(day.getTime() + 86400000);
+  const before = (await monthlyActiveUsers())[10].value;
+  await prisma.userActivityDay.createMany({ data: [{ userId: person.id, day }, { userId: person.id, day: secondDay }, { userId: bot.id, day }] });
+  assert.equal((await monthlyActiveUsers())[10].value, before + 1);
+  const exported = await request("/api/me/export?section=activity", userCookie);
+  assert.equal(exported.status, 200);
+  assert.match(await exported.text(), /"day"/);
+  assert.equal((await request("/api/me/export?section=activity&cursor=2026-99-99", userCookie)).status, 400);
+  const dashboard = await request("/admin/dashboard", adminCookie);
+  assert.match(await dashboard.text(), /Monthly active users/);
+  await prisma.user.delete({ where: { id: person.id } });
+  assert.equal(await prisma.userActivityDay.count({ where: { userId: person.id } }), 0);
+});
+
 test("CSRF rejects missing, cross-site and scheme-mismatched Origin", async () => {
   assert.equal((await request(`/api/articles/${articleId}`, userCookie, "DELETE", undefined, "https://evil.test")).status, 403);
   const noOrigin = await fetch(`${base}/api/articles/${articleId}`, { method: "DELETE", headers: { cookie: userCookie } });
@@ -234,6 +285,24 @@ test("browser hydrates under CSP, publishes a story and renders script text safe
     assert.equal(await page.getByRole("heading", { level: 1 }).textContent(), '<script>window.reviewXss=true</script>');
     assert.equal(await page.evaluate(() => Reflect.get(window, "reviewXss")), undefined);
     assert.equal(await page.locator("img[src=x]").count(), 0);
+    const articlePath = new URL(page.url()).pathname;
+    await context.addCookies([{ name: "admin_session", value: adminCookie.split("=")[1], url: base }]);
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      let headerWidth: number | undefined;
+      for (const path of ["/", "/login", "/signup", "/me/stories", articlePath, "/admin/dashboard"]) {
+        await page.goto(`${base}${path}`);
+        const bounds = await page.locator("body > header > div").boundingBox();
+        assert.ok(bounds, `shared header on ${path}`);
+        if (headerWidth === undefined) headerWidth = bounds.width;
+        assert.equal(bounds.width, headerWidth, `same header width on ${path} at ${width}px`);
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, `${path} fits ${width}px`);
+        if (path === articlePath && width === 1440) {
+          const rail = await page.getByRole("complementary", { name: "More stories" }).boundingBox();
+          assert.equal(rail?.width, 280);
+        }
+      }
+    }
     assert.deepEqual(errors, []);
     await page.setViewportSize({ width: 390, height: 844 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);

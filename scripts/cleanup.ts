@@ -5,6 +5,8 @@ async function main() {
   const { prisma } = await import("../lib/prisma");
   try {
     const before = new Date(Date.now() - 30 * 86400_000);
+    const now = new Date();
+    await prisma.userActivityDay.deleteMany({ where: { day: { lt: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11, 1)) } } });
     await prisma.articleView.deleteMany({ where: { createdAt: { lt: before } } });
     await prisma.verificationToken.deleteMany({ where: { expires: { lt: new Date() } } });
     await prisma.session.deleteMany({ where: { expires: { lt: new Date() } } });

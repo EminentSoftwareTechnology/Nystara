@@ -1,14 +1,10 @@
 import Link from "next/link";
-import { Logo } from "@/components/brand/Logo";
 import { Wall } from "@/components/marketing/Wall";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="grid min-h-dvh bg-page lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
-      <div className="flex min-h-dvh flex-col">
-        <header className="flex h-16 items-center px-5 sm:px-8">
-          <Logo wordmark="h-9" />
-        </header>
+    <div className="grid min-h-[calc(100dvh-4.25rem)] bg-page lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
+      <div className="flex min-h-[calc(100dvh-4.25rem)] flex-col">
         <main className="flex flex-1 items-center justify-center px-5 py-10 sm:px-8">
           <div className="flex w-full justify-center">{children}</div>
         </main>

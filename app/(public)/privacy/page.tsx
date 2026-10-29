@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: "Privacy Policy" };
 
 export default function PrivacyPage() {
   return (
-    <LegalPage title="Privacy Policy" updated="25 October 2026">
+    <LegalPage title="Privacy Policy" updated="29 October 2026">
       <h2>1. Information we collect</h2>
       <p>
         We collect information you provide directly — such as your name, email address, and profile details — when you
@@ -14,6 +14,14 @@ export default function PrivacyPage() {
         your account ID or a random signed reader-cookie ID. We do not derive reader identities from IP addresses or
         browser fingerprints. Request rate limits use short-lived keyed hashes; our hosting and CAPTCHA providers may
         process network and browser information.
+      </p>
+
+      <p>
+        Reading articles and posting comments, reviews or ratings requires sign-in. To measure monthly active users,
+        we record your account ID and the UTC dates when you use the signed-in site. We count each person once per
+        calendar month, exclude fictional newsroom profiles, and do not add analytics cookies or store browsing paths
+        in these activity records. Activity dates are included in your data export and removed with your account.
+        Scheduled cleanup retains the current month and the preceding 11 months of activity dates.
       </p>
 
       <h2>2. How we use your information</h2>

@@ -11,7 +11,7 @@ const TurnstileWidget = dynamic(() => import("@/components/auth/TurnstileWidget"
 
 type State = "idle" | "loading" | "sent" | "error" | "no_account";
 
-export default function LoginForm({ initialEmail }: { initialEmail: string }) {
+export default function LoginForm({ initialEmail, next }: { initialEmail: string; next: string }) {
   const [email, setEmail] = useState(initialEmail);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   // Turnstile tokens are single-use: remount the widget for a fresh one after any rejected attempt.
@@ -36,7 +36,7 @@ export default function LoginForm({ initialEmail }: { initialEmail: string }) {
     const res = await fetch("/api/auth/magic-link", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ intent: "login", email, turnstileToken }),
+      body: JSON.stringify({ intent: "login", email, turnstileToken, next }),
     });
     if (res.ok) {
       setState("sent");
@@ -57,7 +57,7 @@ export default function LoginForm({ initialEmail }: { initialEmail: string }) {
         <h1 className="font-display text-3xl tracking-tight sm:text-4xl">Welcome back</h1>
         <p className="mt-2 text-sm text-muted">
           New to Nystara?{" "}
-          <Link href="/signup" className="font-medium text-foreground underline underline-offset-4">
+          <Link href={`/signup?next=${encodeURIComponent(next)}`} className="font-medium text-foreground underline underline-offset-4">
             Create an account
           </Link>
         </p>
@@ -66,11 +66,11 @@ export default function LoginForm({ initialEmail }: { initialEmail: string }) {
       <PasskeySignInButton
         optionsUrl="/api/auth/passkey/options"
         verifyUrl="/api/auth/passkey/verify"
-        redirectTo="/"
+        redirectTo={next}
         className={buttonClass("primary", "md", "w-full rounded-xl")}
       />
 
-      <OAuthButtons verb="Continue" turnstileToken={turnstileToken} onError={(m) => fail(m)} />
+      <OAuthButtons next={next} verb="Continue" turnstileToken={turnstileToken} onError={(m) => fail(m)} />
 
       <OrDivider label="or get a sign-in link by email" />
 
@@ -100,7 +100,7 @@ export default function LoginForm({ initialEmail }: { initialEmail: string }) {
             <p>
               <strong>{email}</strong> doesn’t have a Nystara account yet. Create one to get your sign-in link.
             </p>
-            <Link href={`/signup?email=${encodeURIComponent(email)}`} className={buttonClass("primary", "sm", "self-start")}>
+            <Link href={`/signup?email=${encodeURIComponent(email)}&next=${encodeURIComponent(next)}`} className={buttonClass("primary", "sm", "self-start")}>
               Create an account
             </Link>
           </div>

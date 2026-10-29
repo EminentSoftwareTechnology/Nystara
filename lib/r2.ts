@@ -3,7 +3,7 @@ import {
   ListObjectsV2Command,
   S3Client,
 } from "@aws-sdk/client-s3";
-import { isStorageImage } from "./storage-url";
+import { isStorageImage, storyStoragePrefix } from "./storage-url";
 
 export function r2Config() {
   const {
@@ -20,7 +20,7 @@ export function r2Config() {
     !secretAccessKey ||
     !bucket ||
     !publicUrl ||
-    !isStorageImage(`${publicUrl.replace(/\/$/, "")}/stories/test.png`)
+    !isStorageImage(`${publicUrl.replace(/\/$/, "")}/${storyStoragePrefix()}test.png`)
   )
     return null;
   return {
@@ -85,7 +85,7 @@ export async function eraseUserImages(userId: string) {
     throw new Error("R2 must be configured before erasing uploaded images");
   const client = r2Client(config);
   try {
-    await deleteR2Prefix(client, config.bucket, `stories/${userId}/`);
+    await deleteR2Prefix(client, config.bucket, storyStoragePrefix(userId));
   } finally {
     client.destroy();
   }
