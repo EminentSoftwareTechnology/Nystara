@@ -37,11 +37,12 @@ export const PROFILES = Array.from({ length: 200 }, (_, index) => {
   };
 });
 
-export function assertLocalEnvironment(env: { DATABASE_URL?: string; NODE_ENV?: string }) {
-  const host = new URL(env.DATABASE_URL ?? "").hostname;
-  if (env.NODE_ENV === "production" || !["localhost", "127.0.0.1", "[::1]"].includes(host)) {
-    throw new Error("The newsroom seed requires a loopback database and non-production NODE_ENV");
-  }
+export function newsroomEnvironment(env: { DATABASE_URL?: string; NODE_ENV?: string; NEWSROOM_ENABLED?: string }) {
+  const database = new URL(env.DATABASE_URL ?? "");
+  if (!["postgres:", "postgresql:"].includes(database.protocol)) throw new Error("A PostgreSQL DATABASE_URL is required");
+  const hosted = env.NODE_ENV === "production" || !["localhost", "127.0.0.1", "[::1]"].includes(database.hostname);
+  if (hosted && env.NEWSROOM_ENABLED !== "1") throw new Error("Set NEWSROOM_ENABLED=1 to enable the production newsroom job");
+  return { hosted };
 }
 
 export function seedDate(value: string) {
@@ -53,11 +54,13 @@ export function seedDate(value: string) {
 }
 
 export function dailySlots(date: string) {
+  const dayOffset = Math.floor(new Date(`${date}T00:00:00Z`).getTime() / 86400000);
   return PROFILES.slice(0, 100).flatMap((profile, index) =>
     Array.from({ length: index % 2 === 0 ? 2 : 3 }, (_, slot) => ({
       id: `newsroom-${date}-${index + 1}-${slot + 1}`,
       profile,
       slot,
+      topic: TOPICS[(index + slot + dayOffset) % TOPICS.length],
     })),
   );
 }

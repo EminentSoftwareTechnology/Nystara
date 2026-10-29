@@ -1,0 +1,14 @@
+FROM node:22-alpine
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+COPY prisma ./prisma
+COPY prisma.config.ts tsconfig.json ./
+COPY lib ./lib
+COPY scripts/daily-newsroom.mts ./scripts/daily-newsroom.mts
+RUN npx prisma generate
+ENV NODE_ENV=production
+RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 newsroom && chown -R newsroom:nodejs /app
+USER newsroom
+CMD ["node", "--import", "tsx", "scripts/daily-newsroom.mts"]

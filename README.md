@@ -185,7 +185,7 @@ sign-in. Handles are `demo-user1` through `demo-user50`; activity emails are dis
 The seeder writes illustrated avatars to `public/demo/avatars` and only replaces
 its own demo story slugs. Scheduled demo stories are one week ahead.
 
-### Daily global AI newsroom (local only)
+### Daily global AI newsroom
 
 ```bash
 # Apply schema changes first; this never resets the database.
@@ -205,11 +205,14 @@ unique `{firstname}.nystara@gmail.com` profile addresses. These are fictional
 identifiers, not provisioned Gmail mailboxes. `isSynthetic` blocks interactive
 sign-in and all outbound email. OpenAI generates articles and reviews; it does
 not authenticate users. The seed writes through the encrypted application client.
-Every profile, article and review discloses its demo origin. Do not copy this
-simulated engagement into a live community.
+Every generated article and review discloses its AI/simulated origin. Existing
+posts, comments, ratings and follows are preserved on reruns. The trusted job
+acts under each managed author ID; it does not create login sessions, bypass
+MFA, or send authentication mail to fictional Gmail identifiers.
 
 Each UTC date has 250 stable slots: 50 authors publish two articles and 50 publish
-three. Topics are science, technology, travel, home, health, finance, AI, robotics,
+three. Each author covers different topics per day, rotating topics daily.
+Topics are science, technology, travel, home, health, finance, AI, robotics,
 software engineering and environment. Live Responses API web search researches
 recent global developments and records its sources; this is a news signal, not
 a verified worldwide popularity ranking. Political topics are excluded by the
@@ -221,18 +224,24 @@ sections and bullets, an illustrated high-level design/process flow, colorful
 theme headings, a sourced YouTube/Vimeo video verified through provider oEmbed,
 and linked research sources. Six simulated reviews per article include stars,
 likes and dislikes. Health and finance content is educational only. Images are
-generated local WebP diagrams, not stock photographs, and are development-only.
+generated WebP covers and diagrams. Local development uses `public/demo/newsroom`;
+production uploads to the configured R2 bucket under `stories/<authorId>/`. Both
+uploads must finish before the article and engagement are committed. Ephemeral
+worker files are never used as production article URLs.
 
 Set `OPENAI_API_KEY` and a model supporting web search and structured outputs
 (`NEWSROOM_OPENAI_MODEL` overrides `OPENAI_MODEL`). This is a paid operation:
 up to ten topic research calls, ten fallback video searches and 250 article calls
 per day. `--max-articles=1..250`
 caps new articles per invocation; `--concurrency=1..16` controls parallel calls
-(default four). Generated research and images stay ignored in `.cache/newsroom`
-and `public/demo/newsroom`. A PostgreSQL advisory lock prevents overlapping runs.
-An article and all its reviews commit together; failures preserve completed slots
-and transient provider failures/invalid output receive at most one paid retry
-(so API calls can be up to twice the base count). Persistent failures
+(default four). `NewsroomRun` records daily attempt/status/count metadata, and
+`NewsroomResearch` persists topic research in PostgreSQL so container restarts
+can resume without repeating paid research. Local caches stay ignored in
+`.cache/newsroom` and `public/demo/newsroom`. A PostgreSQL advisory lock prevents
+overlapping runs.
+An article and all its reviews commit together. Failures preserve completed slots;
+transient provider failures/invalid output receive at most one paid retry (so
+API calls can be up to twice the base count). Persistent failures record `FAILED`
 and exit nonzero. Rerun the same `--date=YYYY-MM-DD` to fill missing slots without
 replacing content or duplicating engagement. Past dates use current research as
 of the requested date; future dates are rejected. Existing unrelated users and
@@ -248,13 +257,53 @@ launchctl bootout gui/$(id -u)/com.nystara.newsroom
 
 The launch agent checks hourly and starts once at **07:00 Europe/London**, including
 British Summer Time. It stores no credentials in the plist; the child reads this
-checkout's `.env.local`. Logs are in `.cache/newsroom/daily.log`. A daily attempt
-marker prevents automatic paid retries after failure; resume manually using the
-same seed date. The machine, logged-in user session, PostgreSQL and network must
+checkout's `.env.local`. Logs are in `.cache/newsroom/daily.log`. A database-backed scheduled-attempt
+record prevents automatic paid retries after failure; resume manually using the
+same seed date without `--scheduled`. The machine, logged-in user session, PostgreSQL and network must
 be available at the scheduled time; missed runs are not backfilled. Review the
 launch agent if the checkout or Node binary moves. No schedule is installed by
-migrations, builds or deployments. The seed refuses production and non-loopback
-databases.
+migrations, builds or deployments. Production and non-loopback databases require `NEWSROOM_ENABLED=1`.
+
+
+### Production / Railway job
+
+Set `NODE_ENV=production` and `NEWSROOM_ENABLED=1` on a **separate cron service**
+using the same `DATABASE_URL` and `DATA_ENCRYPTION_KEY` as the web app. Supply
+`OPENAI_API_KEY`, `OPENAI_MODEL` (or `NEWSROOM_OPENAI_MODEL`), and all five `R2_*`
+variables listed in `.env.example`. Production article generation fails before
+paid calls or user writes if R2 configuration is missing. A profiles-only run needs no R2.
+
+```bash
+# Manual production seed (reads environment variables; never resets data)
+npm run db:seed:newsroom
+# Resume a partial date explicitly
+npm run db:seed:newsroom -- --date=2026-10-29
+```
+
+Create a separate Railway service and set these service settings directly:
+
+| Setting | Value |
+| --- | --- |
+| Dockerfile path | `Dockerfile.newsroom` |
+| Pre-deploy command | `npx prisma migrate deploy` |
+| Start command | `node --import tsx scripts/daily-newsroom.mts` |
+| Cron schedule | `0 * * * *` |
+| Restart policy | `NEVER` |
+| Healthcheck / public domain | none |
+
+Railway's deprecated Config as Code is not used for this new service. The job
+applies additive migrations before deployment and then runs on hourly UTC cron. The wrapper exits at other hours and starts
+once at 07:00 Europe/London, handling GMT/BST. It needs no public domain, web
+healthcheck, browser session, OAuth client credentials, or persistent disk. The
+image includes the TypeScript runtime required by the job. Do not run both a Mac
+scheduler and hosted scheduler against the same database.
+
+After deployment, verify `NewsroomRun.status`, `articleCount`, worker logs, R2
+images and the public article page. A completed date has 250 articles and 1,500
+simulated reviews/ratings. Stop scheduling or unset `NEWSROOM_ENABLED` to disable
+new generation; published content and engagement remain intact. Resume failures
+manually after inspecting logs; an interrupted scheduled attempt does not
+silently trigger repeated paid runs. No human-user content is modified.
 
 ## Scripts
 

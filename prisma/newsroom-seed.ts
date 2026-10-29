@@ -2,24 +2,28 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import { Client } from "pg";
-import sharp from "sharp";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { slugify } from "../lib/slug";
 import { blindIndex } from "../lib/field-encryption";
-import { assertLocalEnvironment, dailySlots, PROFILES, seedDate } from "./newsroom/config";
-import { buildStory, cachedResearch, coverSvg, diagramSvg, draftSchema, type Research } from "./newsroom/content";
+import { newsroomEnvironment, dailySlots, PROFILES, seedDate } from "./newsroom/config";
+import { buildStory, cachedResearch, draftSchema, type Research } from "./newsroom/content";
 import { generate, researchTopic } from "./newsroom/openai";
+import { r2Config } from "../lib/r2";
+import { newsroomImages, writeNewsroomImages } from "./newsroom/media";
 
 const { values } = parseArgs({ options: {
   date: { type: "string", default: new Date().toISOString().slice(0, 10) },
   "max-articles": { type: "string", default: "250" },
   concurrency: { type: "string", default: "4" },
   "profiles-only": { type: "boolean", default: false },
+  scheduled: { type: "boolean", default: false },
 } });
 
 async function main() {
-  assertLocalEnvironment(process.env);
+  const { hosted } = newsroomEnvironment(process.env);
+  const storage = hosted ? r2Config() : null;
+  if (hosted && !values["profiles-only"] && !storage) throw new Error("Configure R2 storage before running production article generation");
   const date = seedDate(values.date);
   const limit = Number(values["max-articles"]);
   const concurrency = Number(values.concurrency);
@@ -29,20 +33,29 @@ async function main() {
   if (!values["profiles-only"] && !process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is required for researched articles");
   const lock = new Client({ connectionString: process.env.DATABASE_URL });
   await lock.connect();
+  let runStarted = false;
   try {
     const result = await lock.query<{ locked: boolean }>("SELECT pg_try_advisory_lock(733129004) AS locked");
     if (!result.rows[0].locked) throw new Error("Another newsroom seed is already running");
-    const directory = path.join(process.cwd(), "public/demo/newsroom");
     const cache = path.join(process.cwd(), ".cache/newsroom", date);
-    await mkdir(directory, { recursive: true });
-    await mkdir(cache, { recursive: true });
+    if (!hosted) await mkdir(cache, { recursive: true });
+    if (!values["profiles-only"]) {
+      const previous = await prisma.newsroomRun.findUnique({ where: { date } });
+      if (values.scheduled && previous?.scheduledAt) {
+        console.log(`${date}: scheduled attempt already recorded; use the seed command without --scheduled to resume.`);
+        return;
+      }
+      const run = { status: "RUNNING" as const, startedAt: new Date(), completedAt: null, lastError: null, ...(values.scheduled ? { scheduledAt: new Date() } : {}) };
+      await prisma.newsroomRun.upsert({ where: { date }, create: { date, ...run }, update: run });
+      runStarted = true;
+    }
 
     for (const profile of PROFILES) {
       const existing = await prisma.user.findFirst({ where: { OR: [{ id: profile.id }, { username: profile.username }, { emailHash: blindIndex(profile.email) }] } });
       if (existing && (existing.id !== profile.id || !existing.isSynthetic)) throw new Error(`Profile collision for ${profile.username}; no existing account was modified`);
       await prisma.user.upsert({ where: { id: profile.id }, update: {}, create: {
         id: profile.id, email: profile.email, name: profile.name, username: profile.username,
-        bio: `Fictional AI demo ${profile.author ? "writer" : "reader"} based in ${profile.country}. Interested in ${profile.topic}. All activity is simulated.`,
+        bio: `AI-managed fictional ${profile.author ? "writer" : "reader"} based in ${profile.country}. Interested in ${profile.topic}. Posts are AI-generated; engagement is simulated.`,
         isSynthetic: true, activityEmails: false,
       } });
     }
@@ -59,14 +72,22 @@ async function main() {
       if (!pending) {
         pending = (async () => {
           const filename = path.join(cache, `${slugify(topic)}.json`);
-          try {
-            return cachedResearch.parse(JSON.parse(await readFile(filename, "utf8")));
-          } catch (cause) {
-            if (!(cause instanceof Error && "code" in cause && cause.code === "ENOENT")) throw cause;
+          const saved = await prisma.newsroomResearch.findUnique({ where: { date_topic: { date, topic } } });
+          if (saved) return cachedResearch.parse(saved.data);
+          let result: Research | undefined;
+          if (!hosted) {
+            try {
+              result = cachedResearch.parse(JSON.parse(await readFile(filename, "utf8")));
+            } catch (cause) {
+              if (!(cause instanceof Error && "code" in cause && cause.code === "ENOENT")) throw cause;
+            }
           }
-          console.log(`Researching ${topic} with live web search…`);
-          const result = await researchTopic(topic, date);
-          await writeFile(filename, JSON.stringify(result), { mode: 0o600 });
+          if (!result) {
+            console.log(`Researching ${topic} with live web search…`);
+            result = await researchTopic(topic, date);
+          }
+          await prisma.newsroomResearch.upsert({ where: { date_topic: { date, topic } }, create: { date, topic, data: result as Prisma.InputJsonValue }, update: {} });
+          if (!hosted) await writeFile(filename, JSON.stringify(result), { mode: 0o600 });
           return result;
         })();
         research.set(topic, pending);
@@ -81,19 +102,18 @@ async function main() {
         const slot = slots[cursor++];
         if (!slot) return;
         try {
-          const evidence = await loadResearch(slot.profile.topic);
-          const topicSlots = dailySlots(date).filter((candidate) => candidate.profile.topic === slot.profile.topic);
+          const evidence = await loadResearch(slot.topic);
+          const topicSlots = dailySlots(date).filter((candidate) => candidate.topic === slot.topic);
           const pitch = evidence.pitches[topicSlots.findIndex((candidate) => candidate.id === slot.id)];
-          const image = `/demo/newsroom/${slot.id}.webp`;
+          const images = newsroomImages(slot.profile.id, slot.id, storage);
+          const image = images.diagram;
           const { value: draft } = await generate(draftSchema,
-            `Write an ORIGINAL 2800–3500 word educational article for a fictional writer from ${slot.profile.country}, focusing on ${slot.profile.topic}. Date: ${date}. Specific pitch: ${JSON.stringify(pitch)}. Distinguish evidence from interpretation, explain trade-offs and uncertainty, give concrete examples and actionable steps. Use 8–10 sections, EACH with EXACTLY THREE substantial paragraphs of 110–150 words (at least 700 characters each), plus practical bullets. Do not condense to an outline or pad by repeating sentences. Include a topic-specific five-stage high-level architecture/process diagram (for engineering use real components and data flow; for lifestyle use an honest conceptual flow). Diagram stage labels must be COMPLETE concise phrases of 2–6 words, without numbers or trailing punctuation. No political content. No invented numbers, URLs or quotes. Use only the evidence below; numeric sourceIds refer to this source list. Cite at least two different sources. Health and finance: general education only, no treatment or investment advice. Provide six varied, clearly simulated reader reviews about SPECIFIC points from this article, with star ratings and both LIKE and DISLIKE reactions. Include at least one critical review. Title must differ from other pitches.\nResearch: ${evidence.summary}\nSources: ${JSON.stringify(evidence.sources.map((source, index) => ({ id: index + 1, ...source })))}`, false, (draft) => { buildStory(draft, evidence, image, date); });
-          await writeFile(path.join(cache, `${slot.id}.json`), JSON.stringify(draft), { mode: 0o600 });
+            `Write an ORIGINAL 2800–3500 word educational article for a fictional writer from ${slot.profile.country}, focusing on ${slot.topic}. Date: ${date}. Specific pitch: ${JSON.stringify(pitch)}. Distinguish evidence from interpretation, explain trade-offs and uncertainty, give concrete examples and actionable steps. Use 8–10 sections, EACH with EXACTLY THREE substantial paragraphs of 110–150 words (at least 700 characters each), plus practical bullets. Do not condense to an outline or pad by repeating sentences. Include a topic-specific five-stage high-level architecture/process diagram (for engineering use real components and data flow; for lifestyle use an honest conceptual flow). Diagram stage labels must be COMPLETE concise phrases of 2–6 words, without numbers or trailing punctuation. No political content. No invented numbers, URLs or quotes. Use only the evidence below; numeric sourceIds refer to this source list. Cite at least two different sources. Health and finance: general education only, no treatment or investment advice. Provide six varied, clearly simulated reader reviews about SPECIFIC points from this article, with star ratings and both LIKE and DISLIKE reactions. Include at least one critical review. Title must differ from other pitches.\nResearch: ${evidence.summary}\nSources: ${JSON.stringify(evidence.sources.map((source, index) => ({ id: index + 1, ...source })))}`, false, (draft) => { buildStory(draft, evidence, image, date); });
+          if (!hosted) await writeFile(path.join(cache, `${slot.id}.json`), JSON.stringify(draft), { mode: 0o600 });
           const story = buildStory(draft, evidence, image, date);
-          await sharp(Buffer.from(diagramSvg(draft, slot.profile.topic))).webp().toFile(path.join(directory, `${slot.id}.webp`));
-          const tag = await prisma.tag.upsert({ where: { slug: slugify(slot.profile.topic) }, update: {}, create: { name: slot.profile.topic, slug: slugify(slot.profile.topic) } });
+          const tag = await prisma.tag.upsert({ where: { slug: slugify(slot.topic) }, update: {}, create: { name: slot.topic, slug: slugify(slot.topic) } });
           const authorIndex = PROFILES.findIndex((profile) => profile.id === slot.profile.id);
-          const cover = `/demo/newsroom/${slot.id}-cover.webp`;
-          await sharp(Buffer.from(coverSvg(authorIndex))).webp().toFile(path.join(directory, `${slot.id}-cover.webp`));
+          await writeNewsroomImages(slot.profile.id, slot.id, draft, slot.topic, authorIndex, storage);
           const readers = [
             PROFILES[(authorIndex + 1) % 100], PROFILES[(authorIndex + 7) % 100],
             ...[0, 19, 43, 71].map((offset) => PROFILES[100 + (authorIndex + offset) % 100]),
@@ -101,8 +121,8 @@ async function main() {
           await prisma.$transaction(async (tx) => {
             await tx.article.create({ data: {
               id: slot.id, authorId: slot.profile.id, slug: `${slugify(draft.title)}-${date}-${slot.slot + 1}`,
-              title: draft.title, subtitle: `AI demo · ${draft.subtitle}`,
-              coverImage: cover, content: story.content as Prisma.InputJsonValue, contentText: story.contentText, readTime: story.readTime,
+              title: draft.title, subtitle: `AI-generated · ${draft.subtitle}`,
+              coverImage: images.cover, content: story.content as Prisma.InputJsonValue, contentText: story.contentText, readTime: story.readTime,
               published: true, publishedAt: new Date(), theme: authorIndex % 2 ? "bold" : "technical",
               tags: { create: { tagId: tag.id } },
             } });
@@ -119,7 +139,15 @@ async function main() {
       }
     }));
     if (failed) throw new Error("Seed incomplete; see the failed slot above");
+    const count = existing.size + completed;
+    await prisma.newsroomRun.update({ where: { date }, data: { status: count === 250 ? "COMPLETED" : "PARTIAL", articleCount: count, completedAt: count === 250 ? new Date() : null } });
     console.log(`Complete: ${existing.size + completed}/250 articles for ${date}. Rerunning this date fills remaining slots only.`);
+  } catch (cause) {
+    if (runStarted) {
+      const articleCount = await prisma.article.count({ where: { id: { in: dailySlots(date).map((slot) => slot.id) } } });
+      await prisma.newsroomRun.update({ where: { date }, data: { status: "FAILED", articleCount, lastError: "Newsroom run failed; inspect worker logs and resume manually." } });
+    }
+    throw cause;
   } finally {
     await lock.end();
   }

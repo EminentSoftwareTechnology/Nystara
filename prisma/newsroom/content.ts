@@ -56,7 +56,7 @@ export function buildStory(draft: Draft, research: Research, image: string, date
     throw new DraftValidationError("Simulated reviews must include both positive and critical reactions");
   }
   const content: StoryNode = { type: "doc", content: [
-    { type: "blockquote", content: [paragraph(`AI-generated demo article. Author, reviews, ratings and engagement are fictional local test data. Research date: ${date}. Health and finance material is educational, not personal advice.`)] },
+    { type: "blockquote", content: [paragraph(`AI-generated article by a fictional AI-managed author. Comments, reviews, ratings and engagement from these profiles are simulated. Research date: ${date}. Health and finance material is educational, not personal advice.`)] },
     ...draft.sections.flatMap((section, index): StoryNode[] => [
       heading(section.heading),
       ...section.paragraphs.map(paragraph),
