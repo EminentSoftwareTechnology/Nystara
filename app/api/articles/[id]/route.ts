@@ -8,6 +8,7 @@ import { MAX_CONTENT_CHARS, readJson } from "@/lib/request";
 import { articleContent, coverImageUrl } from "@/lib/article-schema";
 import { documentText, storyNode } from "@/lib/story-document";
 import { storyTheme } from "@/lib/story-theme";
+import { getPlan, isProTheme } from "@/lib/pro";
 
 const updateSchema = z.object({
   title: z.string().min(1).max(250).optional(),
@@ -31,7 +32,7 @@ export async function PATCH(
   const { id } = await params;
   const article = await prisma.article.findUnique({
     where: { id },
-    select: { authorId: true },
+    select: { authorId: true, theme: true },
   });
 
   if (!article) {
@@ -45,6 +46,12 @@ export async function PATCH(
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  }
+
+  // Stories that already use a Pro theme keep it; switching to one needs Pro.
+  const { theme } = parsed.data;
+  if (theme && theme !== article.theme && isProTheme(theme) && !(await getPlan(session.user.id)).pro) {
+    return NextResponse.json({ error: "This theme is part of Nystara Pro." }, { status: 403 });
   }
 
   const { contentText: suppliedText, content, ...rest } = parsed.data;

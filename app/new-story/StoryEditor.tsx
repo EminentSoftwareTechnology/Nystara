@@ -41,6 +41,8 @@ type Props = {
   avatarUrl: string | null;
   username: string | null;
   initial?: InitialStory;
+  /** Whether the writer can use Pro themes. */
+  pro: boolean;
 };
 const control =
   "rounded-md border border-border bg-page px-2.5 py-2 text-sm hover:bg-surface disabled:opacity-40";
@@ -51,6 +53,7 @@ export default function StoryEditor({
   avatarUrl,
   username,
   initial,
+  pro,
 }: Props) {
   const router = useRouter();
   const [title, setTitle] = useState(initial?.title ?? "");
@@ -191,10 +194,14 @@ export default function StoryEditor({
           body: JSON.stringify(payload),
         },
       );
-      if (!response.ok)
+      if (!response.ok) {
+        const body = (await response.json().catch(() => ({}))) as { error?: unknown };
         throw new Error(
-          "Could not save your story. Check its length and try again.",
+          typeof body.error === "string"
+            ? body.error
+            : "Could not save your story. Check its length and try again.",
         );
+      }
       const saved = (await response.json()) as Draft;
       const article = draft ?? saved;
       setDraft(article);
@@ -387,6 +394,7 @@ export default function StoryEditor({
               disabled={busy}
               uploading={uploading || videoBusy}
               theme={theme}
+              pro={pro}
               onTheme={(value) => {
                 setTheme(value);
                 changed();

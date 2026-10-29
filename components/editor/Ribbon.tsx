@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import type { Editor } from "@tiptap/react";
 import { FONT_FAMILIES, FONT_SIZES } from "@/lib/story-document";
 import { STORY_THEMES, type StoryTheme } from "@/lib/story-theme";
+import { isProTheme } from "@/lib/plans";
 
 type Props = {
   editor: Editor | null;
@@ -18,6 +19,8 @@ type Props = {
   videoOpen: boolean;
   alt: string;
   onAlt: (value: string) => void;
+  /** Whether the writer can pick Pro themes. */
+  pro: boolean;
 };
 
 type Tab = "home" | "insert" | "design";
@@ -84,6 +87,7 @@ export default function Ribbon({
   videoOpen,
   alt,
   onAlt,
+  pro,
 }: Props) {
   const [tab, setTab] = useState<Tab>("home");
   const chain = () => editor?.chain().focus();
@@ -294,14 +298,16 @@ export default function Ribbon({
         {tab === "design" && (
           <Group label="Document themes">
             <div className="flex gap-2">
-              {STORY_THEMES.map((option) => (
+              {STORY_THEMES.map((option) => {
+                const locked = !pro && isProTheme(option.id) && theme !== option.id;
+                return (
                 <button
                   key={option.id}
                   type="button"
                   disabled={disabled}
                   aria-pressed={theme === option.id}
-                  title={`${option.label} theme`}
-                  onClick={() => onTheme(option.id)}
+                  title={locked ? `${option.label} is a Pro theme. Opens plans in a new tab.` : `${option.label} theme`}
+                  onClick={() => (locked ? window.open("/pricing", "_blank", "noopener") : onTheme(option.id))}
                   data-story-theme={option.id}
                   className={`story-theme flex h-[88px] w-[104px] flex-col overflow-hidden rounded border bg-page p-2 text-left transition-colors disabled:opacity-40 ${theme === option.id ? "border-foreground ring-2 ring-foreground" : "border-border hover:border-border-strong"}`}
                 >
@@ -312,9 +318,15 @@ export default function Ribbon({
                   <span className="mt-1 block text-[8px] leading-[1.35] text-muted [font-family:var(--story-body)]">
                     On the Design tab, themes coordinate the look of your story.
                   </span>
-                  <span className="mt-auto text-[11px] font-medium">{option.label}</span>
+                  <span className="mt-auto flex items-center justify-between text-[11px] font-medium">
+                    {option.label}
+                    {isProTheme(option.id) && (
+                      <span className="rounded-full bg-amber-300 px-1.5 text-[9px] font-semibold uppercase text-black">Pro</span>
+                    )}
+                  </span>
                 </button>
-              ))}
+                );
+              })}
             </div>
           </Group>
         )}

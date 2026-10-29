@@ -11,6 +11,7 @@ the pieces fit together, see [ARCHITECTURE.md](ARCHITECTURE.md).
 - [Comments, reactions and ratings](#comments-reactions-and-ratings)
 - [Media and video](#media-and-video)
 - [AI editor](#ai-editor)
+- [Billing](#billing)
 - [Library](#library)
 - [Following writers and topics](#following-writers-and-topics)
 - [Reader sign-in](#reader-sign-in)
@@ -48,6 +49,9 @@ signed in and MFA-verified but possibly without a name or second factor yet, and
   10 seconds to arrive return `408`; unreadable bodies return `400`.
 - **Caching.** Every API response has `Cache-Control: private, no-store`.
 - `GET /api/health` is exempt from all of the above.
+- `POST /api/stripe/webhook` is exempt from the same-origin rule only (Stripe
+  sends no `Origin`); its Stripe signature replaces it. Rate and body limits
+  still apply.
 
 Per-route limits (for example uploads per day) are listed with each route. In
 production the limiter needs Redis; if Redis is unavailable, limited requests are
@@ -127,23 +131,25 @@ Create a draft. **Session.**
 | `content` | Object. If it is a Tiptap `doc`, it must pass the story document allow-list (nodes, marks, 5,000 nodes, depth 20, 100,000 text characters, images only from R2, safe video thumbnails) |
 | `contentText` | up to 100,000 characters. Ignored when `content` is a valid document: the server derives the text itself |
 | `memberOnly` | boolean, default `false` |
-| `theme` | `classic`, `modern`, `editorial`, `elegant`, `bold` or `technical`; default `classic` |
+| `theme` | `classic`, `modern`, `editorial`, `elegant`, `bold` or `technical`; default `classic`. `editorial`, `elegant` and `bold` need [Pro](#pro-entitlement) |
 | `tagSlugs` | up to 5; each lowercased and turned into kebab-case; duplicates dropped; missing tags are created |
 
 `readTime` is words / 200, rounded up, at least 1. The slug is the slugified
 title plus a random UUID.
 
 `201 { "id", "slug", "author": { "username" } }`. Errors: `401`, `400` (Zod
-`flatten()` output in `error`).
+`flatten()` output in `error`), `403` (Pro theme without Pro).
 
 ### `PATCH /api/articles/{id}`
 
 Update your own article. **Session**, author only. All fields optional:
 `title`, `subtitle` (nullable), `content`, `contentText`, `memberOnly`, `theme`,
 `coverImage` (nullable), with the same rules as create. Publication state, author
-and slug cannot be changed here.
+and slug cannot be changed here. Switching to a Pro theme needs Pro; a story
+that already uses one keeps it.
 
-`200 { "id", "slug", "updatedAt" }`. Errors: `401`, `403`, `404`, `400`.
+`200 { "id", "slug", "updatedAt" }`. Errors: `401`, `403` (not the author, or a
+Pro theme without Pro), `404`, `400`.
 
 ### `DELETE /api/articles/{id}`
 
@@ -170,11 +176,12 @@ or sets it to now; unpublishing clears it.
   discovery; reachable by link), `submit` (unpublished, queued for editorial
   review) or `schedule`.
 - `scheduledAt`: required for `schedule`; must be in the future. Due stories are
-  published when the Stories, Following or Stats pages load.
+  published when the Stories, Following or Stats pages load. Scheduling needs
+  [Pro](#pro-entitlement); stories scheduled earlier still publish.
 - Every action except `draft` needs a title and story text.
 
-`200 { "ok": true }`. Errors: `401`, `404`, `400` (bad action, past date, empty
-story).
+`200 { "ok": true }`. Errors: `401`, `403` (`schedule` without Pro), `404`,
+`400` (bad action, past date, empty story).
 
 ---
 
@@ -338,9 +345,7 @@ contents are never returned. Errors: `401`, `404`.
 
 ### `POST /api/ai/editor`
 
-**Session** with premium access: a subscription that is `ACTIVE` or `TRIALING`
-and whose `currentPeriodEnd` is in the future. The premium check is skipped
-only when `NODE_ENV=development`.
+**Session** with [Pro](#pro-entitlement).
 
 ```json
 { "conversationId": "optional", "text": "Message", "attachments": [{ "name": "notes.md", "type": "text/markdown", "data": "<base64>" }] }
@@ -360,7 +365,7 @@ only when `NODE_ENV=development`.
 | Status | Meaning |
 | --- | --- |
 | `401` | Not signed in |
-| `403` | No active premium membership |
+| `403` | No Pro access |
 | `404` | Conversation not found |
 | `503` | `OPENAI_API_KEY` not set |
 | `400` | Bad length, file type or size; conversation full |
@@ -369,6 +374,60 @@ only when `NODE_ENV=development`.
 | `502` | Provider error (including a rejected API key), timeout (60 s) or empty output |
 
 The request uses `store: false` and at most 3,000 output tokens.
+
+---
+
+## Billing
+
+### Pro entitlement
+
+A member **has Pro** when Pro is not launched (`SiteSetting.proEnabled` is
+`false`, the default: every member gets Pro features free), or when their
+`Subscription` is `ACTIVE` or `TRIALING` and `currentPeriodEnd` is in the
+future (`lib/pro.ts`). Pro gates the AI editor, Pro story themes, scheduling,
+the Listen control and the members-only quota.
+
+### `POST /api/billing/checkout`
+
+**Session.** No body. Creates a Stripe Checkout Session in subscription mode for
+`STRIPE_PRO_PRICE_ID` ($1.99 a month), creating the Stripe customer on first use
+(`metadata.userId`). Success returns to `/settings/billing?checkout=success`,
+cancel to `/pricing?checkout=canceled`. Limit: 10 billing requests per user per
+hour (shared with the portal).
+
+`200 { "url": "https://checkout.stripe.com/…" }`.
+
+| Status | Meaning |
+| --- | --- |
+| `401` | Not signed in |
+| `409` | Pro not launched, or the member already has a subscription that is not `CANCELED` (manage it in the portal instead) |
+| `429` | Billing limit reached (`Retry-After` set) |
+| `502` | Stripe returned no URL |
+| `503` | `STRIPE_SECRET_KEY` or `STRIPE_PRO_PRICE_ID` not set |
+
+### `POST /api/billing/portal`
+
+**Session.** No body. Opens the Stripe Billing Portal (cancel, change card,
+invoices) and returns to `/settings/billing`. Works whether or not Pro is
+launched, so subscribers can always cancel.
+
+`200 { "url": "https://billing.stripe.com/…" }`. Errors: `401`, `404` (no
+Stripe customer yet), `429`, `503`.
+
+### `POST /api/stripe/webhook`
+
+Called by Stripe only. No session; authenticated by the `Stripe-Signature`
+header over the raw body with `STRIPE_WEBHOOK_SECRET`. Handles
+`checkout.session.completed` and `customer.subscription.created`, `.updated`
+and `.deleted`: the subscription is re-read from Stripe and upserted into
+`Subscription` for the user who owns the customer. Each event id is recorded in
+`StripeEvent` in the same transaction, so a replay is a no-op. A late
+`canceled` event for an older subscription never replaces a newer live one.
+Stripe statuses map to `ACTIVE`, `TRIALING`, `PAST_DUE` (`past_due`, `unpaid`,
+`incomplete`) or `CANCELED` (`canceled`, `incomplete_expired`, `paused`).
+
+`200 { "received": true }`. Errors: `400` (missing or invalid signature),
+`503` (webhook or secret key not configured).
 
 ---
 
@@ -666,6 +725,20 @@ the current password, must be 12+ characters and at most 72 UTF-8 bytes, revokes
 every admin session for this account and clears the cookie.
 
 `200 { "id", "email", "name", "bio", "avatarUrl" }`. Errors: `400`.
+
+### `GET /api/admin/billing`
+
+`200 { "proEnabled", "updatedAt", "stripe": { "secretKey", "priceId", "webhookSecret" }, "subscribers" }`.
+The `stripe` flags only say whether each variable is set, never its value.
+`subscribers` counts live Pro subscriptions.
+
+### `PUT /api/admin/billing`
+
+`{ "proEnabled": true | false }`. Launches Pro (puts it on sale and limits Pro
+features to subscribers) or turns it off (every member gets Pro features free).
+Launching needs `STRIPE_SECRET_KEY`, `STRIPE_PRO_PRICE_ID` and
+`STRIPE_WEBHOOK_SECRET`, otherwise `409`. Writes the `pro_plan_change` audit
+event. `200` with the same body as `GET`. Errors: `400`, `401`, `409`.
 
 ### `POST /api/admin/theme`
 

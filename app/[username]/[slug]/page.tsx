@@ -6,6 +6,8 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { checkPaywallAccess, extractExcerpt } from "@/lib/paywall";
+import { getPlan, PRO_PRICE } from "@/lib/pro";
+import { hasPremiumAccess } from "@/lib/premium";
 import {
   feedbackSummary,
   mostViewedToday,
@@ -26,6 +28,7 @@ import TrendingRail from "@/components/article/TrendingRail";
 import ArticleLibraryActions from "@/components/library/ArticleLibraryActions";
 import FollowButton from "@/components/social/FollowButton";
 import BackToTop from "@/components/article/BackToTop";
+import ListenButton from "@/components/article/ListenButton";
 
 type Props = {
   params: Promise<{ username: string; slug: string }>;
@@ -54,7 +57,13 @@ const loadArticle = cache(async (username: string, slug: string) => {
       publishedAt: true,
       theme: true,
       author: {
-        select: { username: true, name: true, avatarUrl: true, image: true },
+        select: {
+          username: true,
+          name: true,
+          avatarUrl: true,
+          image: true,
+          subscription: { select: { status: true, currentPeriodEnd: true } },
+        },
       },
       tags: { select: { tag: { select: { name: true, slug: true } } } },
     },
@@ -104,16 +113,8 @@ export default async function ArticlePage({ params }: Props) {
   if (!voter) notFound();
 
   let paywalled = false;
-  let subscriber = false;
-  if (article.memberOnly && userId) {
-    const sub = await prisma.subscription.findUnique({
-      where: { userId },
-      select: { status: true, currentPeriodEnd: true },
-    });
-    subscriber =
-      (sub?.status === "ACTIVE" || sub?.status === "TRIALING") &&
-      sub.currentPeriodEnd > new Date();
-  }
+  const plan = await getPlan(userId);
+  const subscriber = plan.pro;
   if (article.memberOnly && !subscriber) {
     // The free quota still applies to signed-in readers without a paid membership.
     const { allowed } = await checkPaywallAccess(voter.voterId, article.id);
@@ -170,6 +171,7 @@ export default async function ArticlePage({ params }: Props) {
           publishedAt={article.publishedAt}
           memberOnly={article.memberOnly}
           author={article.author}
+          authorPro={hasPremiumAccess(article.author.subscription)}
           tags={article.tags.map(({ tag }) => tag)}
         />
 
@@ -181,6 +183,11 @@ export default async function ArticlePage({ params }: Props) {
                 articleId={article.id}
                 signedIn={!!userId}
               />
+              {!paywalled && (
+                <div className="mt-4">
+                  <ListenButton pro={plan.pro} targetId="story-body" />
+                </div>
+              )}
               {userId !== article.authorId && (
                 <div className="mt-4 flex items-center gap-3">
                   <span className="text-sm text-muted">
@@ -195,6 +202,7 @@ export default async function ArticlePage({ params }: Props) {
               )}
             </div>
 
+            <div id="story-body">
             <StoryContent
               content={paywalled ? null : article.content}
               text={
@@ -203,6 +211,7 @@ export default async function ArticlePage({ params }: Props) {
                   : article.contentText
               }
             />
+            </div>
 
             {paywalled && (
               <div className="mt-10 rounded-3xl border border-border bg-background px-6 py-10 text-center">
@@ -210,13 +219,14 @@ export default async function ArticlePage({ params }: Props) {
                   This story is for members only
                 </h2>
                 <p className="mb-6 text-muted">
-                  Become a member to read the full story and support the author.
+                  You have read your five free member stories this month. Pro
+                  members read every story, for {PRO_PRICE} a month.
                 </p>
                 <Link
-                  href="/subscribe"
+                  href="/pricing"
                   className={buttonClass("primary", "lg")}
                 >
-                  Become a member
+                  Upgrade to Pro
                 </Link>
               </div>
             )}

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { type Theme, isExplicitTheme } from "@/lib/theme";
+import ProPlanSettings from "@/components/admin/ProPlanSettings";
 
 const themes: { value: Theme; label: string; description: string }[] = [
   { value: "light", label: "Light", description: "Always use the light theme" },
@@ -89,6 +90,8 @@ export default function SettingsPage() {
           {msg && <span className="text-sm text-green-600 dark:text-green-400">{msg}</span>}
         </div>
       </div>
+
+      <ProPlanSettings />
 
       <div className="bg-background rounded-2xl border border-border p-6 mt-4 flex flex-wrap items-center justify-between gap-4">
         <div>

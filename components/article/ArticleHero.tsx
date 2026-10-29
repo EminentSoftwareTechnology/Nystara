@@ -1,4 +1,5 @@
 import Link from "next/link";
+import ProBadge from "@/components/billing/ProBadge";
 
 type Props = {
   title: string;
@@ -9,6 +10,7 @@ type Props = {
   memberOnly: boolean;
   author: { username: string | null; name: string | null; avatarUrl: string | null; image?: string | null };
   tags: { name: string; slug: string }[];
+  authorPro?: boolean;
 };
 
 export default function ArticleHero({
@@ -20,6 +22,7 @@ export default function ArticleHero({
   memberOnly,
   author,
   tags,
+  authorPro = false,
 }: Props) {
   const authorName = author.name ?? author.username ?? "Author";
   const onImage = Boolean(coverImage);
@@ -98,6 +101,7 @@ export default function ArticleHero({
               ) : (
                 <span className="font-semibold">{authorName}</span>
               )}
+              {authorPro && <ProBadge className="ml-2 align-middle" />}
               <p className={muted}>
                 {readTime} min read
                 {publishedAt && (

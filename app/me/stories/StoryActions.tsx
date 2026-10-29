@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { buttonClass, INPUT } from "@/components/ui";
 import type { StoryTab } from "@/lib/story-status";
@@ -8,9 +9,11 @@ import type { StoryTab } from "@/lib/story-status";
 export default function StoryActions({
   id,
   tab,
+  canSchedule,
 }: {
   id: string;
   tab: StoryTab;
+  canSchedule: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -93,24 +96,34 @@ export default function StoryActions({
               </button>
             )}
           </div>
-          <div className="flex flex-wrap items-end gap-2">
-            <label className="text-xs text-muted">
-              Schedule publication (your local time)
-              <input
-                className={`${INPUT} mt-1`}
-                type="datetime-local"
-                value={date}
-                onChange={(event) => setDate(event.target.value)}
-              />
-            </label>
-            <button
-              className={buttonClass("secondary", "sm")}
-              disabled={busy || !date}
-              onClick={() => change("schedule")}
-            >
-              Schedule
-            </button>
-          </div>
+          {canSchedule ? (
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="text-xs text-muted">
+                Schedule publication (your local time)
+                <input
+                  className={`${INPUT} mt-1`}
+                  type="datetime-local"
+                  value={date}
+                  onChange={(event) => setDate(event.target.value)}
+                />
+              </label>
+              <button
+                className={buttonClass("secondary", "sm")}
+                disabled={busy || !date}
+                onClick={() => change("schedule")}
+              >
+                Schedule
+              </button>
+            </div>
+          ) : (
+            <p className="text-xs text-muted">
+              Scheduled publishing is part of{" "}
+              <Link href="/pricing" className="underline underline-offset-4">
+                Nystara Pro
+              </Link>
+              .
+            </p>
+          )}
           <p className="text-xs text-muted">
             Unlisted stories are accessible by link and hidden from discovery.
             Submissions stay private until published.

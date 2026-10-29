@@ -1,3 +1,4 @@
+import { getPlan } from "@/lib/pro";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -13,7 +14,7 @@ export default async function EditStoryPage({
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
   const { id } = await params;
-  const [article, user] = await Promise.all([
+  const [article, user, plan] = await Promise.all([
     prisma.article.findFirst({
       where: { id, authorId: session.user.id },
       select: {
@@ -39,6 +40,7 @@ export default async function EditStoryPage({
         image: true,
       },
     }),
+    getPlan(session.user.id),
   ]);
   if (!article || !user) notFound();
   const doc = storyNode.safeParse(article.content);
@@ -48,6 +50,7 @@ export default async function EditStoryPage({
       email={session.user.email ?? null}
       avatarUrl={user.avatarUrl ?? user.image}
       username={user.username}
+      pro={plan.pro}
       initial={{
         ...article,
         updatedAt: article.updatedAt.toISOString(),

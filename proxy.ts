@@ -15,6 +15,9 @@ const CREDENTIAL_ENDPOINTS = new Set([
 // Second-factor checks and factor changes get the strict tier: a 6-digit code must not be guessable.
 const CREDENTIAL_PREFIXES = ["/api/auth/mfa/", "/api/auth/passkey/", "/api/admin/login/", "/api/me/security/", "/api/admin/security/"];
 
+// Server-to-server callbacks that send no Origin header. Each must verify its own signature on the raw body.
+const SIGNED_WEBHOOKS = new Set(["/api/stripe/webhook"]);
+
 function isCredentialEndpoint(pathname: string): boolean {
   return CREDENTIAL_ENDPOINTS.has(pathname) || CREDENTIAL_PREFIXES.some((prefix) => pathname.startsWith(prefix));
 }
@@ -24,7 +27,7 @@ async function guardApi(req: NextRequest): Promise<NextResponse | null> {
   const isWrite = !["GET", "HEAD", "OPTIONS"].includes(req.method);
 
   if (isWrite) {
-    if (!isSameOriginWrite(req)) {
+    if (!(req.method === "POST" && SIGNED_WEBHOOKS.has(pathname)) && !isSameOriginWrite(req)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     // Magic links must go through /api/auth/magic-link, which enforces Turnstile.

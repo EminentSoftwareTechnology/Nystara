@@ -17,6 +17,7 @@ before your first launch. They list operator duties the code cannot do for you.
 - [Other platforms](#other-platforms)
 - [Migrations](#migrations)
 - [First administrator](#first-administrator)
+- [Launching Pro (Stripe)](#launching-pro-stripe)
 - [Scheduled maintenance](#scheduled-maintenance)
 - [Launch checklist](#launch-checklist)
 - [Rollback and backups](#rollback-and-backups)
@@ -69,9 +70,9 @@ which is inlined at build time and must be passed as a Docker build argument.
 | `R2_ACCOUNT_ID` (32 hex characters), `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL` (HTTPS) | Image uploads. Without them uploads return 503. If `R2_BUCKET_NAME` is set, the rest must be valid or account erasure fails |
 | `CLAMAV_HOST`, `CLAMAV_PORT` (default 3310) | Upload virus scanning |
 | `OPENAI_API_KEY`, `OPENAI_MODEL` | AI editor |
-| `STRIPE_SECRET_KEY` | Cancelling subscriptions during erasure. Needed as soon as any `Subscription` row is not `CANCELED` |
+| `STRIPE_SECRET_KEY`, `STRIPE_PRO_PRICE_ID`, `STRIPE_WEBHOOK_SECRET` | Pro checkout, billing portal and webhook. All three are needed before an admin can launch Pro. `STRIPE_SECRET_KEY` is also needed for erasure as soon as any `Subscription` row is not `CANCELED` |
 | `TRUST_PROXY_IP` | `1` only if your ingress appends or overwrites `X-Forwarded-For` **and** direct access to the app is blocked. With `0` (default) all clients share one per-IP bucket; per-user and per-email limits still apply |
-| `STRIPE_WEBHOOK_SECRET`, `BLOB_READ_WRITE_TOKEN` | Reserved; not read by current code |
+| `BLOB_READ_WRITE_TOKEN` | Reserved; not read by current code |
 
 `EMAIL_FROM` applies to all email delivery. Resend is the default locally and in
 staging/production; set `RESEND_API_KEY` in each environment. Development-only:
@@ -338,6 +339,29 @@ The password must be 12+ characters and at most 72 UTF-8 bytes. Re-running the
 seed resets the password, keeps the admin role and revokes existing admin
 sessions. Sign in at `/admin/login`, then add a passkey or authenticator under
 **Security**.
+
+---
+
+## Launching Pro (Stripe)
+
+Pro is off after deploy: every member gets Pro features free and nothing is on
+sale. To start charging $1.99 a month:
+
+1. In Stripe, create a product **Nystara Pro** with a recurring monthly price of
+   $1.99. Copy the price id (`price_…`) into `STRIPE_PRO_PRICE_ID`.
+2. Add a webhook endpoint `{NEXTAUTH_URL}/api/stripe/webhook` for
+   `checkout.session.completed`, `customer.subscription.created`,
+   `customer.subscription.updated` and `customer.subscription.deleted`. Copy its
+   signing secret into `STRIPE_WEBHOOK_SECRET`.
+3. Set `STRIPE_SECRET_KEY` (a restricted key with write access to Customers,
+   Checkout Sessions, Billing Portal sessions and Subscriptions is enough).
+4. Configure the Billing Portal in Stripe (allow cancel and card updates).
+5. Redeploy, then in `/admin/settings` check that all three variables show
+   **Set** and press **Launch Pro**. Turning Pro off later makes Pro features
+   free again but does not stop existing subscriptions; cancel those in Stripe.
+
+Locally, `stripe listen --forward-to localhost:6100/api/stripe/webhook` prints a
+test webhook secret.
 
 ---
 

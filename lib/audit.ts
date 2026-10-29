@@ -10,7 +10,8 @@ type Event =
   | "mfa_totp_disabled"
   | "mfa_passkey_added"
   | "mfa_passkey_removed"
-  | "mfa_recovery_regenerated";
+  | "mfa_recovery_regenerated"
+  | "pro_plan_change";
 
 export function audit(event: Event, outcome: "success" | "denied") {
   console.info(JSON.stringify({ event, outcome, timestamp: new Date().toISOString() }));

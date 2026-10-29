@@ -178,6 +178,7 @@ flowchart TB
 | Identity | Admin auth | `lib/admin-session.ts`, `lib/admin-auth.ts`, `lib/password.ts` | Admin JWT, database version check, password rules |
 | Identity | Bot checks | `lib/turnstile.ts`, `lib/oauth-turnstile.ts` | Turnstile verification, OAuth pre-check cookie |
 | Reading | Paywall and premium | `lib/paywall.ts`, `lib/premium.ts` | Metered access, membership check |
+| Billing | Pro plan and Stripe | `lib/pro.ts`, `lib/plans.ts`, `lib/billing.ts`, `lib/stripe.ts` | Launch switch, Pro entitlement, webhook sync |
 | Engagement | Engagement | `lib/engagement.ts`, `lib/visitor.ts`, `lib/comments.ts` | Voter identity, views, feedback, trending, comments |
 | Writing | Story documents | `lib/story-document.ts`, `lib/article-schema.ts`, `lib/story-theme.ts`, `lib/slug.ts`, `lib/local-draft.ts` | Document schema, text extraction, themes, slugs, browser drafts |
 | Media | Media | `lib/image-pipeline.ts`, `lib/image-type.ts`, `lib/clamav.ts`, `lib/r2.ts`, `lib/storage-url.ts`, `lib/video.ts` | Validation, scanning, re-encoding, storage, oEmbed |
@@ -189,7 +190,8 @@ flowchart TB
 
 | Area | Pages | API |
 | --- | --- | --- |
-| Public | `/`, `/about`, `/features`, `/why-blog`, `/privacy`, `/terms`, `/cookies`, `/contact` | `GET /api/articles`, `GET /api/health` |
+| Public | `/`, `/about`, `/features`, `/pricing`, `/why-blog`, `/privacy`, `/terms`, `/cookies`, `/contact` | `GET /api/articles`, `GET /api/health` |
+| Billing | `/pricing`, `/settings/billing` | `/api/billing/checkout`, `/api/billing/portal`, `/api/stripe/webhook` |
 | Auth | `/login`, `/signup`, `/verify`, `/mfa`, `/sign-in-error` | `/api/auth/[...nextauth]`, `/api/auth/magic-link`, `/api/auth/oauth-turnstile`, `/api/auth/mfa/{options,verify}`, `/api/auth/passkey/{options,verify}` |
 | Reading | `/{username}`, `/{username}/{slug}` | `/api/articles/{id}/comments`, `/api/articles/{id}/feedback`, `/api/comments/{id}` |
 | Writing | `/new-story`, `/editor/{id}`, `/ai-editor` | `POST /api/articles`, `PATCH`/`DELETE /api/articles/{id}`, `/api/articles/{id}/publish`, `/api/media`, `/api/videos`, `/api/ai/editor` |
@@ -901,7 +903,7 @@ click.
 The writer pastes up to 12,000 characters and picks polish, shorten, expand,
 outline, titles or feedback (`lib/ai-editor.ts`). Text is kept in local storage
 (`nystara:ai:{owner}`). Results can be copied or appended to the in-progress
-`/new-story` local draft. Non-members see the page with controls locked.
+`/new-story` local draft. Members without Pro see the page with controls locked.
 
 ```mermaid
 sequenceDiagram
@@ -916,7 +918,7 @@ sequenceDiagram
     W->>S: Choose action, submit text
     S->>AI: POST {action, text}
     AI->>AI: auth() (401)
-    AI->>DB: Subscription ACTIVE or TRIALING, period not ended (403)
+    AI->>DB: getPlan(): Pro not launched, or Subscription live (403)
     AI->>AI: OPENAI_API_KEY and OPENAI_MODEL set (503)
     AI->>AI: Zod: action enum, 1–12,000 chars (400)
     AI->>RL: 30 per user per day, counted even if provider fails (429)
@@ -930,8 +932,8 @@ sequenceDiagram
     end
 ```
 
-Suggestions are not fact-checked. Without checkout, premium access can only be
-granted by creating a `Subscription` row directly (see Part V).
+Suggestions are not fact-checked. Pro access comes from Stripe Checkout (§23.1,
+now built) or from Pro not being launched yet.
 
 ---
 
@@ -948,7 +950,7 @@ and save through `/api/admin/*`, which verifies on every request.
 | `/admin/articles`, `/new`, `/{id}`, `/{id}/edit` | Search, filter published/draft; create, edit, publish, delete |
 | `/admin/profile` | Name, bio, password change (signs the admin out) |
 | `/admin/security` | Passkeys, authenticator app, recovery codes |
-| `/admin/settings` | Appearance theme; sign-in security summary |
+| `/admin/settings` | Appearance theme; Nystara Pro launch switch and Stripe readiness; sign-in security summary |
 
 Rules: admin-created articles store plain text as `{ text }` content; an admin
 cannot remove their own admin role or delete their own account; deleting a user
@@ -1307,7 +1309,7 @@ endpoints are suggestions to be confirmed in each pull request.
 
 | # | Area | Current state | Impact | Priority |
 | --- | --- | --- | --- | --- |
-| G1 | Stripe billing | SDK and `Subscription` model only; no checkout, portal or webhook | Members-only stories and the AI editor cannot be sold | P0 |
+| G1 | Stripe billing | Built: checkout, portal, webhook, admin launch switch (`SiteSetting.proEnabled`) | — | Done |
 | G2 | Scheduled retention | `db:cleanup` exists but is not scheduled | `ArticleView` grows; expired sessions linger | P0 |
 | G3 | Claps, bookmarks, follows | Counted and displayed; no endpoint changes them; Follow button inert | Library, Following and featured feed stay empty | P1 |
 | G4 | Tag pages | Links go to `/tag/{slug}`, which 404s | Broken links | P1 |
@@ -1321,6 +1323,14 @@ endpoints are suggestions to be confirmed in each pull request.
 ## 23. Proposed designs
 
 ### 23.1 Billing with Stripe Checkout (G1)
+
+**Status: built.** Implemented as designed below, plus a runtime launch switch
+(`SiteSetting.proEnabled`, set from `/admin/settings`). While it is off every
+member has Pro features and checkout returns `409`. Pro ($1.99/month) gates the
+AI editor, the Editorial, Elegant and Bold story themes, scheduled publishing,
+browser text-to-speech ("Listen") and the members-only quota, and shows a Pro
+badge. `invoice.payment_failed` is not handled separately because Stripe also
+sends `customer.subscription.updated` with `past_due`.
 
 New endpoints:
 

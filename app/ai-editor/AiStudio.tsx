@@ -16,6 +16,7 @@ import type {
 } from "@/lib/ai-chat";
 import { WandIcon } from "@/components/icons";
 import { CARD, buttonClass, cx } from "@/components/ui";
+import { PRO_PRICE } from "@/lib/plans";
 
 const PROMPTS = [
   {
@@ -235,17 +236,26 @@ export default function AiStudio({
 
   if (!premium)
     return (
-      <div className={`${CARD} mt-8 p-6`}>
-        <h2 className="text-xl font-semibold">
-          AI editing is part of premium membership
-        </h2>
-        <p className="my-4 text-sm text-muted">
-          The story editor keeps your writing safe while premium access is being
-          prepared.
+      <div className={`${CARD} mt-8 p-6 sm:p-8`}>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">
+          Nystara Pro
         </p>
-        <Link href="/new-story" className={buttonClass()}>
-          Open the story editor
-        </Link>
+        <h2 className="mt-2 text-xl font-semibold">
+          The AI editor is part of Pro
+        </h2>
+        <p className="my-4 max-w-xl text-sm leading-6 text-muted">
+          Brainstorm, outline and polish drafts with an editor that keeps your
+          voice, plus Pro themes, scheduled publishing, listening mode and
+          unlimited member stories, for {PRO_PRICE} a month.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/pricing" className={buttonClass()}>
+            See Pro
+          </Link>
+          <Link href="/new-story" className={buttonClass("secondary")}>
+            Open the story editor
+          </Link>
+        </div>
       </div>
     );
 

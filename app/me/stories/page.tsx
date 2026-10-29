@@ -7,6 +7,7 @@ import AppShell from "@/components/layout/AppShell";
 import { buttonClass, CARD } from "@/components/ui";
 import { publishDueStories, STORY_TABS, storyTab } from "@/lib/story-status";
 import StoryActions from "./StoryActions";
+import { getPlan } from "@/lib/pro";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,7 @@ export default async function StoriesPage({
     unlisted: { published: true, unlisted: true },
     submissions: { published: false, submittedAt: { not: null } },
   };
-  const [articles, counts] = await Promise.all([
+  const [articles, counts, plan] = await Promise.all([
     prisma.article.findMany({
       where: { authorId: session.user.id, ...conditions[tab] },
       orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
@@ -56,6 +57,7 @@ export default async function StoriesPage({
         }),
       ),
     ),
+    getPlan(session.user.id),
   ]);
   const descriptions = {
     drafts: "Your next good idea starts here. Pick up where you left off.",
@@ -148,7 +150,7 @@ export default async function StoriesPage({
                     Edit
                   </Link>
                 </div>
-                <StoryActions id={article.id} tab={tab} />
+                <StoryActions id={article.id} tab={tab} canSchedule={plan.pro} />
                 {article.publishedAt && article.author.username && (
                   <Link
                     href={`/${article.author.username}/${article.slug}`}

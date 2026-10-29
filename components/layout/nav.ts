@@ -12,6 +12,7 @@ import {
   UsersIcon,
   WandIcon,
   BookIcon,
+  SparkIcon,
 } from "@/components/icons";
 
 export type NavItem = { href: string; label: string; Icon: IconComponent };
@@ -51,6 +52,7 @@ export function navSections(username: string | null): NavSection[] {
       items: [
         { href: username ? `/${username}` : "/settings", label: "Profile", Icon: UserIcon },
         { href: "/settings", label: "Settings", Icon: SettingsIcon },
+        { href: "/settings/billing", label: "Billing", Icon: SparkIcon },
         { href: "/me/security", label: "Security", Icon: ShieldIcon },
         { href: "/me/help", label: "Help", Icon: HelpIcon },
       ],
