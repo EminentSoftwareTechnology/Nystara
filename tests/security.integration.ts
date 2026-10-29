@@ -250,10 +250,16 @@ test("chunked HTTP payloads above 1 MiB are rejected by the production proxy", a
 test("retention cleanup removes expired records while keeping current reading records", async () => {
   const old = await prisma.articleView.create({ data: { visitorId: adminId, articleId, createdAt: new Date(0) } });
   const current = await prisma.articleView.create({ data: { visitorId: adminId, articleId } });
+  const now = new Date();
+  const expiredDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 12, 1));
+  const retainedDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11, 1));
+  await prisma.userActivityDay.createMany({ data: [{ userId, day: expiredDay }, { userId, day: retainedDay }] });
   const result = spawnSync(process.execPath, ["--import", "tsx", "scripts/cleanup.ts"], { env: process.env, encoding: "utf8" });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(await prisma.articleView.findUnique({ where: { id: old.id } }), null);
   assert.ok(await prisma.articleView.findUnique({ where: { id: current.id } }));
+  assert.equal(await prisma.userActivityDay.count({ where: { userId, day: expiredDay } }), 0);
+  assert.equal(await prisma.userActivityDay.count({ where: { userId, day: retainedDay } }), 1);
 });
 
 

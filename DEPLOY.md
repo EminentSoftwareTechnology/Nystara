@@ -207,8 +207,11 @@ provider variable references. Deploy it with `scripts/deploy-newsroom.sh`, not t
 web service's root Railway config. Enable `NEWSROOM_ENABLED=1` and hourly cron
 `0 * * * *` after the initial production migration; its wrapper publishes only at
 07:00 Europe/London. A profiles-only bootstrap creates the 200 fictional profiles
-without paid article generation. Schedule `npm run db:cleanup` daily in a separate
-maintenance job using the web deployment's environment.
+without paid article generation. A separate `maintenance-production` service uses
+the same worker image with start command `node --import tsx scripts/cleanup.ts`,
+cron `15 1 * * *` (01:15 UTC daily), restart policy `NEVER`, and the production
+app's database/encryption variable references. It prunes expired sessions, reading
+records and activity dates without generating articles or sending emails.
 
 ### Article access and monthly active users
 
