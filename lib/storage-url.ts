@@ -1,4 +1,5 @@
 export function isStorageImage(raw: string): boolean {
+  if (process.env.NODE_ENV !== "production" && /^\/demo\/newsroom\/[a-z0-9-]+\.webp$/.test(raw)) return true;
   try {
     const url = new URL(raw);
     const base = new URL(process.env.R2_PUBLIC_URL ?? "");
@@ -18,7 +19,7 @@ export function isStorageImage(raw: string): boolean {
 }
 
 export function isOwnedProfileImage(raw: string, userId: string): boolean {
-  if (!isStorageImage(raw)) return false;
+  if (raw.startsWith("/") || !isStorageImage(raw)) return false;
   const base = new URL(process.env.R2_PUBLIC_URL!);
   const url = new URL(raw);
   const prefix = `${base.pathname.replace(/\/$/, "")}/stories/${userId}/`;

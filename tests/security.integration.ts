@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -14,6 +14,7 @@ process.env.DATABASE_URL = database;
 process.env.REDIS_URL = redis;
 process.env.NEXTAUTH_SECRET = "integration-only-auth-secret-32-characters-long";
 process.env.ADMIN_JWT_SECRET = "integration-only-admin-secret-32-characters-long";
+process.env.DATA_ENCRYPTION_KEY ??= randomBytes(32).toString("base64");
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: database, max: 15 }) });
 const base = "http://127.0.0.1:4319";
 let server: ChildProcess;
@@ -128,7 +129,7 @@ test("password changes invalidate all previously issued admin tokens", async () 
 
 test("concurrent paywall requests grant at most five unique articles", async () => {
   const { checkPaywallAccess } = await import("../lib/paywall");
-  const articles = await Promise.all(Array.from({ length: 10 }, (_, i) => prisma.article.create({ data: { authorId: userId, title: `quota ${i}`, slug: `quota-${i}`, content: {}, contentText: "quota", readTime: 1, published: true } })));
+  const articles = await Promise.all(Array.from({ length: 10 }, (_, i) => prisma.article.create({ data: { authorId: userId, title: `quota ${i}`, slug: `quota-${i}`, content: {}, contentText: "quota", readTime: 1, published: true, memberOnly: true } })));
   const results = await Promise.all(articles.map((article) => checkPaywallAccess(otherId, article.id)));
   assert.equal(results.filter((result) => result.allowed).length, 5);
   const recorded = await prisma.articleView.findFirstOrThrow({ where: { visitorId: otherId } });
@@ -226,7 +227,7 @@ test("browser hydrates under CSP, publishes a story and renders script text safe
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto(`${base}/new-story`);
-    await page.getByRole("textbox", { name: "Title", exact: true }).fill('<script>window.reviewXss=true</script>');
+    await page.getByRole("textbox", { name: "Story title", exact: true }).fill('<script>window.reviewXss=true</script>');
     await page.getByRole("textbox", { name: "Story text" }).fill('<img src=x onerror="window.reviewXss=true">');
     await page.getByRole("button", { name: "Publish", exact: true }).click();
     await page.waitForURL(/\/review-user\//);
@@ -294,10 +295,10 @@ test("story status changes enforce ownership and validate schedules", async () =
   assert.equal((await request(endpoint, undefined, "POST", { action: "publish" })).status, 401);
   assert.equal((await request(endpoint, adminCookie, "POST", { action: "publish" })).status, 401);
   // The other account may have been erased by the preceding retention test. A new valid session still must not grant ownership.
-  const outsider = await prisma.user.create({ data: { email: `outsider-${randomUUID()}@example.test`, activityEmails: false } });
+  const outsider = await prisma.user.create({ data: { email: `outsider-${randomUUID()}@example.test`, name: "Outsider", mfaEnabled: true, activityEmails: false } });
   createdUsers.push(outsider.id);
   const token = randomUUID();
-  await prisma.session.create({ data: { userId: outsider.id, sessionToken: token, expires: new Date(Date.now() + 3600_000) } });
+  await prisma.session.create({ data: { userId: outsider.id, sessionToken: token, expires: new Date(Date.now() + 3600_000), mfaVerifiedAt: new Date() } });
   assert.equal((await request(endpoint, `authjs.session-token=${token}`, "POST", { action: "publish" })).status, 404);
   assert.equal((await request(endpoint, userCookie, "POST", { action: "schedule", scheduledAt: "2020-01-01T00:00:00.000Z" })).status, 400);
   assert.equal((await request(endpoint, userCookie, "POST", { action: "schedule", scheduledAt: "tomorrow" })).status, 400);

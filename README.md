@@ -185,6 +185,77 @@ sign-in. Handles are `demo-user1` through `demo-user50`; activity emails are dis
 The seeder writes illustrated avatars to `public/demo/avatars` and only replaces
 its own demo story slugs. Scheduled demo stories are one week ahead.
 
+### Daily global AI newsroom (local only)
+
+```bash
+# Apply schema changes first; this never resets the database.
+node --env-file-if-exists=.env.local node_modules/prisma/build/index.js migrate deploy
+npm run db:generate
+
+# Create 200 profiles and their follows without paid AI calls.
+npm run db:seed:newsroom -- --profiles-only
+
+# Smoke test one researched article, then complete today's 250 slots.
+npm run db:seed:newsroom -- --max-articles=1 --concurrency=1
+npm run db:seed:newsroom
+```
+
+The newsroom has 100 publishing authors and 100 readers from 20 countries, with
+unique `{firstname}.nystara@gmail.com` profile addresses. These are fictional
+identifiers, not provisioned Gmail mailboxes. `isSynthetic` blocks interactive
+sign-in and all outbound email. OpenAI generates articles and reviews; it does
+not authenticate users. The seed writes through the encrypted application client.
+Every profile, article and review discloses its demo origin. Do not copy this
+simulated engagement into a live community.
+
+Each UTC date has 250 stable slots: 50 authors publish two articles and 50 publish
+three. Topics are science, technology, travel, home, health, finance, AI, robotics,
+software engineering and environment. Live Responses API web search researches
+recent global developments and records its sources; this is a news signal, not
+a verified worldwide popularity ranking. Political topics are excluded by the
+prompt, a structured non-political declaration and a limited keyword check;
+these checks do not replace human editorial review.
+
+Articles must contain 2,000–6,000 words (10+ minutes at 200 words/minute), useful
+sections and bullets, an illustrated high-level design/process flow, colorful
+theme headings, a sourced YouTube/Vimeo video verified through provider oEmbed,
+and linked research sources. Six simulated reviews per article include stars,
+likes and dislikes. Health and finance content is educational only. Images are
+generated local WebP diagrams, not stock photographs, and are development-only.
+
+Set `OPENAI_API_KEY` and a model supporting web search and structured outputs
+(`NEWSROOM_OPENAI_MODEL` overrides `OPENAI_MODEL`). This is a paid operation:
+up to ten topic research calls, ten fallback video searches and 250 article calls
+per day. `--max-articles=1..250`
+caps new articles per invocation; `--concurrency=1..16` controls parallel calls
+(default four). Generated research and images stay ignored in `.cache/newsroom`
+and `public/demo/newsroom`. A PostgreSQL advisory lock prevents overlapping runs.
+An article and all its reviews commit together; failures preserve completed slots
+and transient provider failures/invalid output receive at most one paid retry
+(so API calls can be up to twice the base count). Persistent failures
+and exit nonzero. Rerun the same `--date=YYYY-MM-DD` to fill missing slots without
+replacing content or duplicating engagement. Past dates use current research as
+of the requested date; future dates are rejected. Existing unrelated users and
+articles are preserved; profile identity collisions stop the run.
+
+On macOS, explicitly install the optional daily schedule:
+
+```bash
+node --import tsx scripts/install-newsroom-schedule.mts
+# To disable it:
+launchctl bootout gui/$(id -u)/com.nystara.newsroom
+```
+
+The launch agent checks hourly and starts once at **07:00 Europe/London**, including
+British Summer Time. It stores no credentials in the plist; the child reads this
+checkout's `.env.local`. Logs are in `.cache/newsroom/daily.log`. A daily attempt
+marker prevents automatic paid retries after failure; resume manually using the
+same seed date. The machine, logged-in user session, PostgreSQL and network must
+be available at the scheduled time; missed runs are not backfilled. Review the
+launch agent if the checkout or Node binary moves. No schedule is installed by
+migrations, builds or deployments. The seed refuses production and non-loopback
+databases.
+
 ## Scripts
 
 | Command | Purpose |

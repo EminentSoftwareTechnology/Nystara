@@ -30,6 +30,7 @@ model User {
   stripeCustomerId String?   @unique
   emailTheme       String    @default("light")
   activityEmails   Boolean   @default(true)
+  isSynthetic      Boolean   @default(false)
   mfaEnabled       Boolean   @default(false)
   totpSecret       String?
   totpEnabledAt    DateTime?

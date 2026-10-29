@@ -30,10 +30,11 @@ for (const [mode, provider, expected] of [
   });
 }
 
-function delivery(env: Record<string, string>, failure = false) {
+function delivery(env: Record<string, string>, failure = false, synthetic = false) {
   const sends: Sent[] = [];
   let smtpClosed = false;
   const send = loadModule<Delivery>("send", env, {
+    "../prisma": { prisma: { user: { findUnique: async () => ({ isSynthetic: synthetic }) } } },
     "./provider": loadModule<Provider>("provider", env),
     "./templates": {},
     resend: { Resend: class {
@@ -59,6 +60,14 @@ test("default Resend delivery preserves content, unsubscribe headers and provide
   assert.equal(client.sends[0].text, message.text);
   assert.equal(client.sends[0].headers?.["List-Unsubscribe"], `<${unsubscribe}>`);
   assert.equal(client.sends[0].headers?.["List-Unsubscribe-Post"], "List-Unsubscribe=One-Click");
+});
+
+test("synthetic recipients never reach SMTP or Resend", async () => {
+  for (const EMAIL_PROVIDER of ["smtp", "resend"]) {
+    const client = delivery({ EMAIL_PROVIDER }, false, true);
+    await assert.rejects(client.deliverEmail("amina.nystara@gmail.com", message), /Synthetic accounts/);
+    assert.equal(client.sends.length, 0);
+  }
 });
 
 test("configured sender is used and essential mail has no unsubscribe headers", async () => {
