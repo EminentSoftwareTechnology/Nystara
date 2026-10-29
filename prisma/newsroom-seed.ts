@@ -54,7 +54,7 @@ async function main() {
     for (const profile of PROFILES) {
       const existing = await prisma.user.findFirst({ where: { OR: [{ id: profile.id }, { username: profile.username }, { emailHash: blindIndex(profile.email) }] } });
       if (existing && (existing.id !== profile.id || !existing.isSynthetic)) throw new Error(`Profile collision for ${profile.username}; no existing account was modified`);
-      await prisma.user.upsert({ where: { id: profile.id }, update: {}, create: {
+      await prisma.user.upsert({ where: { id: profile.id }, update: { email: profile.email }, create: {
         id: profile.id, email: profile.email, name: profile.name, username: profile.username,
         bio: `AI-managed fictional ${profile.author ? "writer" : "reader"} based in ${profile.country}. Interested in ${profile.topic}. Posts are AI-generated; engagement is simulated.`,
         isSynthetic: true, activityEmails: false,

@@ -37,15 +37,18 @@ export type FeedbackSummary = {
   mine: { reaction: "LIKE" | "DISLIKE" | null; rating: number | null };
 };
 
+// Fictional newsroom profiles must not inflate public ratings (UK DMCC Act 2024 fake-review ban).
+const genuine = { OR: [{ userId: null }, { user: { isSynthetic: false } }] };
+
 export async function feedbackSummary(articleId: string, voterId: string | null): Promise<FeedbackSummary> {
   const [reactions, rating, mine] = await Promise.all([
     prisma.articleFeedback.groupBy({
       by: ["reaction"],
-      where: { articleId, reaction: { not: null } },
+      where: { articleId, reaction: { not: null }, ...genuine },
       _count: { _all: true },
     }),
     prisma.articleFeedback.aggregate({
-      where: { articleId, rating: { not: null } },
+      where: { articleId, rating: { not: null }, ...genuine },
       _avg: { rating: true },
       _count: { rating: true },
     }),

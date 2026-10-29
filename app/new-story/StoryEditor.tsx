@@ -11,7 +11,6 @@ import ImageExtension from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
 import UserMenu from "@/components/layout/UserMenu";
 import MobileNav from "@/components/layout/MobileNav";
-import { Logo } from "@/components/brand/Logo";
 import { VideoNode } from "@/components/editor/video-extension";
 import Ribbon from "@/components/editor/Ribbon";
 import { uploadImage } from "@/components/editor/upload-image";
@@ -306,7 +305,6 @@ export default function StoryEditor({
     <div className="min-h-screen bg-background text-foreground touch:pb-[calc(4.5rem+env(safe-area-inset-bottom))]">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-page px-4 py-4 sm:px-8">
         <div className="flex items-center gap-4">
-          <Logo wordmark="h-8" />
           <span role="status" className="text-xs text-muted">
             {status}
           </span>

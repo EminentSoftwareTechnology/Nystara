@@ -143,8 +143,12 @@ explains the flows in detail.
   already subscribed. Unsubscribing deletes the row; unconfirmed rows are
   deleted after 7 days.
 
-- Anonymous readers get a random signed 30-day `reader_session` cookie. It is not
-  derived from IP, browser fingerprint or email.
+- Articles require sign-in, so no anonymous reader cookie is set; the proxy
+  deletes any legacy `reader_session` cookie. Only essential cookies are used.
+- Fictional newsroom profiles use reserved `@newsroom.nystara.invalid`
+  addresses that can never belong to a real person, and their ratings and
+  reactions are excluded from public aggregates and user counts (UK DMCC Act
+  2024 fake-review rules).
 - Data export is owner-scoped, paginated and excludes credentials.
 - Account erasure cancels billing, deletes uploaded images and cascades database
   rows; it stops before deleting anything if storage or billing fails.

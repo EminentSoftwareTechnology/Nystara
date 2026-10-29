@@ -5,7 +5,7 @@ export const metadata: Metadata = { title: "Cookie Policy" };
 
 export default function CookiesPage() {
   return (
-    <LegalPage title="Cookie Policy" updated="25 October 2026">
+    <LegalPage title="Cookie Policy" updated="29 October 2026">
       <h2>What are cookies?</h2>
       <p>
         Cookies are small text files stored on your device when you visit a website. They allow the site to remember
@@ -42,11 +42,16 @@ export default function CookiesPage() {
         </tbody>
       </table>
 
-      <h3>Reading quota and sign-in protection</h3>
+      <h3>Sign-in protection</h3>
       <p>
-        The reader_session cookie stores a signed random identifier for the free-reading quota for up to 30 days. The
-        oauth_turnstile cookie records CAPTCHA pre-verification for up to 5 minutes. Sign-in also uses short-lived CSRF,
-        state and PKCE cookies. No analytics cookies are currently set.
+        The oauth_turnstile cookie records CAPTCHA pre-verification for up to 5 minutes. Sign-in also uses short-lived
+        CSRF, state and PKCE cookies. The CAPTCHA is provided by Cloudflare Turnstile. Reading now requires sign-in, so
+        we no longer set the former reader_session cookie and remove it if your browser still has one. No analytics or
+        advertising cookies are set.
+      </p>
+      <p>
+        The story editor keeps an unsaved draft in your browser&apos;s local storage so you don&apos;t lose work. It
+        stays on your device and is cleared once the draft is saved or discarded.
       </p>
 
       <h2>Managing cookies</h2>
