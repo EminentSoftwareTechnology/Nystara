@@ -23,7 +23,11 @@ const nextAuth = NextAuth((req) => ({
   adapter: authAdapter(prisma),
   callbacks: {
     ...authConfig.callbacks,
-    async signIn({ account, email }) {
+    async signIn({ account, email, user }) {
+      if (user.email) {
+        const existing = await prisma.user.findUnique({ where: { email: user.email }, select: { isSynthetic: true } });
+        if (existing?.isSynthetic) return false;
+      }
       if (email?.verificationRequest) return req === undefined;
       if (account?.type === "oauth") {
         const token = req?.cookies.get(OAUTH_TURNSTILE_COOKIE)?.value;

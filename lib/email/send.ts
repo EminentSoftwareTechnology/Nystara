@@ -3,10 +3,13 @@ import { Resend } from "resend";
 import type { EmailEvent, EmailOptions } from "./templates";
 import { renderEmail } from "./templates";
 import { usesResend } from "./provider";
+import { prisma } from "../prisma";
 
 export type RenderedEmail = { subject: string; html: string; text: string };
 
 export async function deliverEmail(to: string, message: RenderedEmail, unsubscribeUrl?: string) {
+  const recipient = await prisma.user.findUnique({ where: { email: to }, select: { isSynthetic: true } });
+  if (recipient?.isSynthetic) throw new Error("Synthetic accounts cannot receive email");
   const from = process.env.EMAIL_FROM ?? (usesResend() ? "Nystara <noreply@nystara.com>" : "Nystara <noreply@nystara.local>");
   const headers = unsubscribeUrl ? {
     "List-Unsubscribe": `<${unsubscribeUrl}>`,
