@@ -93,7 +93,7 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="sticky top-[4.25rem] z-30 flex shrink-0 flex-col border-b border-border bg-background md:h-[calc(100dvh-4.25rem)] md:w-64 md:border-b-0 md:border-r">
+    <aside className="sticky top-0 z-30 flex shrink-0 flex-col border-b border-border bg-background md:h-dvh md:w-64 md:border-b-0 md:border-r">
       <div className="flex h-16 items-center justify-between gap-3 px-5 md:border-b md:border-border">
         <Logo href="/admin/dashboard" wordmark="h-8" />
         <span className="rounded-full border border-border px-2 py-0.5 text-[11px] font-medium uppercase tracking-wider text-muted">Admin</span>

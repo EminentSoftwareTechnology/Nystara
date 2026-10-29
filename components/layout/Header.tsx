@@ -51,6 +51,9 @@ export default function Header({ signedIn }: { signedIn: boolean }) {
     };
   }, [open]);
 
+  // Signed-in readers and the admin console navigate with their own sidebars.
+  if (signedIn || (pathname.startsWith("/admin") && pathname !== "/admin/login")) return null;
+
   const primary = signedIn
     ? { href: "/new-story", label: "Write a story" }
     : { href: "/signup", label: "Start writing" };

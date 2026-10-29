@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { legacyDocument, storyNode } from "@/lib/story-document";
 import { toStoryTheme } from "@/lib/story-theme";
+import AppShell from "@/components/layout/AppShell";
 import StoryEditor from "@/app/new-story/StoryEditor";
 
 export default async function EditStoryPage({
@@ -45,21 +46,23 @@ export default async function EditStoryPage({
   if (!article || !user) notFound();
   const doc = storyNode.safeParse(article.content);
   return (
-    <StoryEditor
-      name={user.name}
-      email={session.user.email ?? null}
-      avatarUrl={user.avatarUrl ?? user.image}
-      username={user.username}
-      pro={plan.pro}
-      initial={{
-        ...article,
-        updatedAt: article.updatedAt.toISOString(),
-        theme: toStoryTheme(article.theme),
-        content:
-          doc.success && doc.data.content
-            ? doc.data
-            : legacyDocument(article.contentText),
-      }}
-    />
+    <AppShell>
+      <StoryEditor
+        name={user.name}
+        email={session.user.email ?? null}
+        avatarUrl={user.avatarUrl ?? user.image}
+        username={user.username}
+        pro={plan.pro}
+        initial={{
+          ...article,
+          updatedAt: article.updatedAt.toISOString(),
+          theme: toStoryTheme(article.theme),
+          content:
+            doc.success && doc.data.content
+              ? doc.data
+              : legacyDocument(article.contentText),
+        }}
+      />
+    </AppShell>
   );
 }

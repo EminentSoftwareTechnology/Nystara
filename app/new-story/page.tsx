@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getPlan } from "@/lib/pro";
+import AppShell from "@/components/layout/AppShell";
 import StoryEditor from "./StoryEditor";
 
 export const dynamic = "force-dynamic";
@@ -19,12 +20,14 @@ export default async function NewStoryPage() {
   ]);
 
   return (
-    <StoryEditor
-      name={dbUser?.name ?? session.user.name ?? null}
-      email={session.user.email ?? null}
-      avatarUrl={dbUser?.avatarUrl ?? session.user.image ?? null}
-      username={dbUser?.username ?? null}
-      pro={plan.pro}
-    />
+    <AppShell>
+      <StoryEditor
+        name={dbUser?.name ?? session.user.name ?? null}
+        email={session.user.email ?? null}
+        avatarUrl={dbUser?.avatarUrl ?? session.user.image ?? null}
+        username={dbUser?.username ?? null}
+        pro={plan.pro}
+      />
+    </AppShell>
   );
 }

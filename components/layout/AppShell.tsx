@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Logo } from "@/components/brand/Logo";
 import AppSidebar from "./AppSidebar";
 import MobileNav from "./MobileNav";
 
@@ -33,10 +34,15 @@ export default async function AppShell({ children, requireAuth = true }: Props) 
     : null;
 
   return (
-    <div className="flex min-h-[calc(100dvh-4.25rem)] flex-col bg-page text-foreground">
+    <div className="flex min-h-dvh flex-col bg-page text-foreground">
       {user && <AppSidebar user={user} />}
 
       <div className={`flex min-w-0 flex-1 flex-col ${user ? "ml-64 touch:ml-0" : ""}`}>
+        {user && (
+          <div className="hidden h-14 shrink-0 items-center border-b border-border px-4 touch:flex">
+            <Logo wordmark="h-8" />
+          </div>
+        )}
 
         <main className={`flex-1 ${user ? "touch:pb-[calc(4.5rem+env(safe-area-inset-bottom))]" : ""}`}>{children}</main>
       </div>
