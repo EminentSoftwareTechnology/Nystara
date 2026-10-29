@@ -312,8 +312,9 @@ bash scripts/deploy-newsroom.sh --project PROJECT_ID --environment ENVIRONMENT_I
 It uploads only committed files and excludes the root `railway.toml`/`railway.json`
 belonging to the web service. Otherwise that legacy web config can override the
 worker Dockerfile/start command. Secrets and local caches are never uploaded.
-Use this helper for worker updates and configuration changes. Railway's redeploy
-action can rebuild from the attached repository and reapply the web configuration.
+For GitHub-based deployments, connect the production web, newsroom and maintenance
+services to `main` and configure each service separately. The repository has no
+root Railway config that can override worker settings with the web configuration.
 
 After deployment, verify `NewsroomRun.status`, `articleCount`, worker logs, R2
 images and the public article page. A completed date has 250 articles and 1,500

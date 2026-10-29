@@ -158,9 +158,12 @@ enable automatic email-based linking simply to bypass this protection. See
 
 ## Railway
 
-`railway.toml` builds with the `Dockerfile`, starts with
-`./docker-entrypoint.sh node server.js` (migrations, then the server), checks
-`/api/health` with a 300-second timeout, and restarts on failure up to 3 times.
+Configure each Railway service separately. For the web service, select
+`Dockerfile`, start with `./docker-entrypoint.sh node server.js` (migrations,
+then the server), check `/api/health` with a 300-second timeout, and restart on
+failure up to 3 times. Workers use `Dockerfile.newsroom` and their own commands
+and schedules. A root `railway.toml` must not override all three services with
+the web configuration.
 
 1. Create a project and add the GitHub repository as a service.
 2. Add a **PostgreSQL** service and reference its `DATABASE_URL` in the app.
