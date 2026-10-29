@@ -298,6 +298,19 @@ healthcheck, browser session, OAuth client credentials, or persistent disk. The
 image includes the TypeScript runtime required by the job. Do not run both a Mac
 scheduler and hosted scheduler against the same database.
 
+Deploy the committed worker source using the upload helper (pass the actual
+Railway project, environment and worker service IDs):
+
+```bash
+bash scripts/deploy-newsroom.sh --project PROJECT_ID --environment ENVIRONMENT_ID --service WORKER_SERVICE_ID
+```
+
+It uploads only committed files and excludes the root `railway.toml`/`railway.json`
+belonging to the web service. Otherwise that legacy web config can override the
+worker Dockerfile/start command. Secrets and local caches are never uploaded.
+Use this helper for worker updates; redeploying its existing built image also
+preserves the separate worker configuration.
+
 After deployment, verify `NewsroomRun.status`, `articleCount`, worker logs, R2
 images and the public article page. A completed date has 250 articles and 1,500
 simulated reviews/ratings. Stop scheduling or unset `NEWSROOM_ENABLED` to disable
