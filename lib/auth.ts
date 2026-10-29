@@ -23,13 +23,14 @@ const nextAuth = NextAuth((req) => ({
   adapter: authAdapter(prisma),
   callbacks: {
     ...authConfig.callbacks,
-    async signIn({ account, email, user }) {
+    async signIn({ account, email, profile, user }) {
       if (user.email) {
         const existing = await prisma.user.findUnique({ where: { email: user.email }, select: { isSynthetic: true } });
         if (existing?.isSynthetic) return false;
       }
       if (email?.verificationRequest) return req === undefined;
       if (account?.type === "oauth") {
+        if (account.provider === "google" && profile?.email_verified !== true) return false;
         const token = req?.cookies.get(OAUTH_TURNSTILE_COOKIE)?.value;
         return verifyOAuthTurnstileToken(token);
       }

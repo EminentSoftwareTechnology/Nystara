@@ -51,6 +51,9 @@ export const authConfig = {
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      // Lets an existing account (e.g. made with an email link) add Google sign-in. Safe because Google verifies the
+      // address (checked in the signIn callback) and every account still needs its second factor.
+      allowDangerousEmailAccountLinking: true,
     }),
     GitHub({
       clientId: process.env.GITHUB_CLIENT_ID!,
