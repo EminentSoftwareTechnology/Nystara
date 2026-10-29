@@ -5,7 +5,12 @@ import { test } from "node:test";
 import { runInNewContext } from "node:vm";
 import { ModuleKind, transpileModule } from "typescript";
 
-type SignIn = (input: { user: { email: string }; account?: { type: string }; email?: { verificationRequest: boolean } }) => Promise<boolean>;
+type SignIn = (input: {
+  user: { email: string };
+  account?: { type: string; provider?: string };
+  profile?: { email_verified?: boolean };
+  email?: { verificationRequest: boolean };
+}) => Promise<boolean>;
 
 function callback(synthetic: boolean): SignIn {
   let signIn: SignIn | undefined;
@@ -37,4 +42,13 @@ test("synthetic accounts cannot sign in by email or OAuth; ordinary accounts ret
       { user: { email: "newsroom-user-1@newsroom.nystara.invalid" } },
     ]) assert.equal(await signIn(input), !synthetic);
   }
+});
+
+test("Google sign-in requires a verified email, since Google can link to an existing account by email", async () => {
+  const signIn = callback(false);
+  const user = { email: "reader@example.com" };
+  const account = { type: "oauth", provider: "google" };
+  assert.equal(await signIn({ user, account, profile: { email_verified: true } }), true);
+  assert.equal(await signIn({ user, account, profile: { email_verified: false } }), false);
+  assert.equal(await signIn({ user, account }), false);
 });

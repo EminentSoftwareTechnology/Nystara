@@ -41,6 +41,10 @@ explains the flows in detail.
   blocked so the protected route cannot be bypassed.
 - **OAuth sign-in** requires a 5-minute signed Turnstile cookie checked in the
   Auth.js `signIn` callback.
+- **Google account linking**: Google sign-in attaches to an existing account with
+  the same email (`allowDangerousEmailAccountLinking`), only when Google reports
+  `email_verified`. The account's second factor is still required. GitHub does
+  not link by email, because its provider does not confirm the email is verified.
 - **New usernames** are random (`writer-{uuid}`) and never derived from email.
 - **Email sign-in tokens** are looked up by their hashed token and matched against
   the decrypted email, because the identifier column is encrypted
